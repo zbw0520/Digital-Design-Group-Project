@@ -1,0 +1,15 @@
+# Vivado directories
+peak_detector.cache/*
+peak_detector.hw/*
+peak_detector.ip_user_files/*
+peak_detector.runs/*
+peak_detector.sim/*
+
+
+*.xcix.lock
+
+!peak_detector.runs/impl_1/
+
+peak_detector.runs/impl_1/*
+
+!peak_detector.runs/impl_1/top.bit
