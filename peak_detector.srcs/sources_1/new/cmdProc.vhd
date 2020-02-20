@@ -25,7 +25,9 @@ use ieee.numeric_std.all;
 use work.common_pack.all;
 library UNISIM;
 use UNISIM.VCOMPONENTS.ALL;
+-- synthesis translate_off
 use UNISIM.VPKG.ALL;
+-- synthesis translate_on
 
 -- Uncomment the following library declaration if using
 -- arithmetic functions with Signed or Unsigned values
@@ -59,95 +61,100 @@ entity cmdProc is
 end cmdProc;
 
 architecture Behavioral of cmdProc is
-signal srst1, srst0 : std_logic;
-signal en1, en0 : std_logic;
-signal value1, value0 : std_logic_vector(3 downto 0);
+signal oe, fe, valid : std_logic;
+signal data_rx, data_tx : std_logic_vector(7 downto 0);
+signal numWords_bcd_internal : std_logic_vector(11 downto 0);
 
-TYPE state_type IS (INIT, FIRST, SECOND);   --three states in the state machine
+
+TYPE state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, RX_A_3);   --define states in the state machine
 SIGNAL curState, nextState: state_type;
-signal x_reg : std_logic;
 
 begin
 -------------------------------------------------------------------
-combi_nextState: PROCESS(curState, rxnow)
+
+combi_nextState: PROCESS(curState, valid)
 begin
     case curState is
         when INIT =>
-            if x_reg = '1' then
-                srst1 <= '1';
-                srst0 <= '1';
-                en1 <= '0';
-                en0 <= '0';
-                nextState <= INIT;
+            if valid = '1' then
+                nextState <= RX_INIT;
             else
-                srst0 <= '0';
-                en0 <= '1';
-                nextState <= FIRST;
-            end if;
-
-        when FIRST =>
-            if (x_reg = '0') and (value0_reg <= "1111")  then
-                nextState <= FIRST;
-            elsif ((x_reg = '1') and (value0_reg = "1110")) then
-                en0 <= '0';
-                en1 <= '1';
-                srst0 <= '1';
-                srst1 <= '0';
-                nextState <= SECOND;
-            else
-                srst0 <= '1';
-                en0 <= '0';
                 nextState <= INIT;
             end if;
 
-        when SECOND =>
-            if ((x_reg = '1') and (value1_reg /= "1111")) then
-                nextState <= SECOND;
-            elsif ((x_reg = '0') and (value1_reg < "1111")) then
-                en1 <= '0';
-                srst1 <= '1';
-                en0 <= '1';
-                srst1 <= '0';
-                nextState <= FIRST;                    
+        when RX_INIT =>
+            if fe = '1' or oe = '1' then
+                nextState <= RX_INIT;
+            elsif data_rx = "01000001" or data_rx = "01100001" then --A or a
+                nextState <= RX_A;
+            elsif data_rx = "01010000" or data_rx = "01110000" then --P or p
+                nextState <= RX_P;
+            elsif data_rx = "01001100" or data_rx = "01101100" then --L or l
+                nextState <= RX_L;
             else
-                en1 <= '0';
-                srst1 <= '1';
-                nextState <= INIT;
+                nextState <= RX_INIT;
+            end if;             
+
+        when RX_A =>
+            if fe = '1' or oe = '1' then
+                nextState <= RX_INIT;
+            elsif data_rx < "00110000" or data_rx > "00111001" then --0 = "00110000" 9 = "00111001"
+                nextState <= RX_INIT;                  
+            else
+                nextState <= RX_A_1;
+                numWords_bcd_internal <= numWords_bcd_internal(11 downto 4) & data_rx(3 downto 0);
+            end if;
+        when RX_A_1 =>
+            if fe = '1' or oe = '1' then
+                nextState <= RX_INIT;
+            elsif data_rx < "00110000" or data_rx > "00111001" then  --0 = "00110000" 9 = "00111001"
+                nextState <= RX_INIT;                  
+            else
+                nextState <= RX_A_2;
+                numWords_bcd_internal <= numWords_bcd_internal(11 downto 8) & data_rx(3 downto 0) & numWords_bcd_internal(3 downto 0);
+            end if;
+        when RX_A_2 =>
+            if fe = '1' or oe = '1' then
+                nextState <= RX_INIT;
+            elsif data_rx < "00110000" or data_rx > "00111001" then  --0 = "00110000" 9 = "00111001"
+                nextState <= RX_INIT;                  
+            else
+                nextState <= RX_A_3;
+                numWords_bcd <= data_rx(3 downto 0) & numWords_bcd_internal(7 downto 0);
+                start <= '1';
             end if;
         when others =>
-            srst1 <= '1';
-            srst0 <= '1';
-            en1 <= '0'; 
-            en0 <= '0';
             nextState <= INIT;
     end case;
 end process; 
 -------------------------------------------------------------------
-seq_state: PROCESS (clk, reset)
-BEGIN
-  IF reset = '0' THEN
+seq_state: process (clk, reset)
+begin
+  if reset = '0' then
     curState <= INIT;
-  ELSIF clk'EVENT AND clk='1' THEN
+  elsif clk'event and clk='1' then
     curState <= nextState;
-  END IF;
-END PROCESS; -- seq
+  end if;
+end process; -- seq
 -------------------------------------------------------------------
-registers: PROCESS(clk)
-BEGIN
-    IF clk'event AND clk='1' THEN
-        x_reg <= to_stdulogic(x);
-        value0_reg <= value0;
-        value1_reg <= value1;
-    END IF;
-END PROCESS;
+registers: process(clk)
+begin
+    if clk'event and clk='1' then
+        data_rx <= rxData;
+        oe <= ovErr;
+        fe <= framErr;
+        valid <= rxnow;
+    else
+        data_rx <= data_rx;
+        oe <= oe;
+        fe <= fe;
+        valid <= valid;
+    end if;
+end process;
 -------------------------------------------------------------------
-combi_out: PROCESS(curState, x_reg, value1_reg)
-BEGIN
-y <= '0'; -- assign default value
-IF curState = SECOND AND x_reg = '1' AND value1_reg = "1111" THEN
-y <= '1';
-END IF;
-END PROCESS; -- combi_output
+combi_out: process(curState)
+begin
+end process; -- combi_output
 -------------------------------------------------------------------
 
 end Behavioral;
