@@ -6,4 +6,4 @@ you can get some help from the link below:
 
 they are all quite easy to learn
 
-### In the git we can share all the code and changes we made to improve efficiency.
+### In the git and github we can share all the code and changes we made to improve efficiency.
