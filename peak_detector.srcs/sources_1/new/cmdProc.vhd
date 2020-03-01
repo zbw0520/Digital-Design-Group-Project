@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------------
 -- Company: 
--- Engineer: 
+-- Engineer: B.Zhang
 -- 
 -- Create Date: 19.02.2020 11:12:40
 -- Design Name: 
@@ -61,66 +61,63 @@ entity cmdProc is
 end cmdProc;
 
 architecture Behavioral of cmdProc is
-signal oe, fe, valid, start_reg, rxdone_reg: std_logic;   --内部寄存器信号单比特
-signal data_rx, data_tx : std_logic_vector(7 downto 0); --内部寄存器信号多比特
-signal numWords_bcd_reg : BCD_ARRAY_TYPE(2 downto 0);
-signal memory : CHAR_ARRAY_TYPE(998 downto 0);  --memory for maximum 999 bytes
+signal fe, fe_n: std_logic;   --internal signals with 1 bit
+signal data_tx : std_logic_vector(7 downto 0); --internal signals with 8 bits
 signal counter, counter_full: std_logic_vector(9 downto 0); -- maximum 999
+signal numWords_bcd_reg, numWords_bcd_reg_n: BCD_ARRAY_TYPE(2 downto 0);
 
-type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A, tx_A_init, tx_A);   --定义状�?�机中的变量
-signal curState, nextState: state_type; --状�?�变�???????
+type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A, tx_A_init, tx_A);   --define the state type
+signal curState, nextState: state_type; --state variables
 
 begin
---------------主状态机过程--------------------------
-
-combi_nextState: PROCESS(curState, valid, data_rx, seqDone, dataReady)
+numWords_bcd <= numWords_bcd_reg;
+--------------State register combinational logic--------------------------
+combi_nextState: PROCESS(curState, rxnow, rxData, seqDone, dataReady)
 begin
     case curState is
-        when INIT =>    --状�?�机初始状�??
-            if valid = '1' then
+        when INIT =>    --Initial state
+            if rxnow = '1' then
                 nextState <= RX_INIT;
             else
                 nextState <= INIT;
             end if;
-
-        when RX_INIT => --状�?�机接收状�??
-            if fe = '1' and valid = '1' then
+        when RX_INIT => --initial receiver state
+            if fe = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
-            elsif data_rx = "01000001" or data_rx = "01100001" then --A or a
+            elsif rxData = "01000001" or rxData = "01100001" then --A or a
                 nextState <= RX_A;
-            elsif data_rx = "01010000" or data_rx = "01110000" then --P or p
+            elsif rxData = "01010000" or rxData = "01110000" then --P or p
                 nextState <= RX_P;
-            elsif data_rx = "01001100" or data_rx = "01101100" then --L or l
+            elsif rxData = "01001100" or rxData = "01101100" then --L or l
                 nextState <= RX_L;
             else
                 nextState <= RX_INIT;
             end if;             
-
-        when RX_A =>
-            if fe = '1' and valid = '1' then
+        when RX_A =>    --receive first bit
+            if fe = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
-            elsif data_rx >= "00110000" and data_rx <= "00111001" and valid = '1' then --0 = "00110000" 9 = "00111001"
+            elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then --0 = "00110000" 9 = "00111001"
                 nextState <= RX_A_1;                  
             else
                 nextState <= RX_A;
             end if;
-        when RX_A_1 =>
-            if fe = '1' and valid = '1' then
+        when RX_A_1 =>  --receive second bit
+            if fe = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
-            elsif data_rx >= "00110000" and data_rx <= "00111001" and valid = '1' then  --0 = "00110000" 9 = "00111001"
+            elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
                 nextState <= RX_A_2;                  
             else
                 nextState <= RX_A_1;
             end if;
-        when RX_A_2 =>
-            if fe = '1' and valid = '1' then
+        when RX_A_2 =>  --receive third bit
+            if fe = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
-            elsif data_rx >= "00110000" and data_rx <= "00111001" and valid = '1' then  --0 = "00110000" 9 = "00111001"
+            elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
                 nextState <= dataConsumer_communication_A;                  
             else
                 nextState <= RX_A_2;
             end if;
-        when dataConsumer_communication_A =>
+        when dataConsumer_communication_A =>    
             if seqDone = '1' then
                 nextState <= tx_A_init;
             elsif dataReady = '1' then
@@ -146,7 +143,7 @@ begin
             nextState <= INIT;
     end case;
 end process; 
----------------状�?�变量赋值控制过�????----------------------------------
+---------------state register sequential logic----------------------------------
 seq_state: process (clk, reset)
 begin
   if reset = '1' then
@@ -155,74 +152,82 @@ begin
     curState <= nextState;
   end if;
 end process; -- seq
-------------信号寄存控制过程--------------------------
-registers: process(clk)
+--------------fe register--------------------
+combi_fe: process(framErr) --combinational logic
 begin
-    if clk'event and clk='1' then
-        data_rx <= rxData;
-        oe <= ovErr;
-        fe <= framErr;
-        valid <= rxnow;
+        fe_n <= framErr;
+end process;
+seq_fe: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        fe <= '0';
+    elsif clk'event and clk='1' then
+        fe <= fe_n;
+    end if;
+end process; 
+--------------numWords_bcd_reg_0 register--------------------
+combi_numWords_bcd_reg_0: process(nextState, curState, reset) --combinational logic
+begin
+    if nextState = dataConsumer_communication_A and curState = RX_A_2 then
+        numWords_bcd_reg_n(0) <= rxData(3 downto 0);
     else
-        data_rx <= data_rx;
-        oe <= oe;
-        fe <= fe;
-        valid <= valid;
+        numWords_bcd_reg_n(0) <= numWords_bcd_reg(0);
     end if;
 end process;
-----------输出信号控制过程--------------------------
-combi_out: process(clk, curState, nextState, dataReady, seqDone, txdone)
+seq_numWords_bcd_reg_0: process (clk, reset) --sequential logic
 begin
-    if clk'event and clk='1' then
-        if reset = '1' then
-            rxdone_reg <= '0';
-            start_reg <= '0';
-            numWords_bcd_reg(0) <= "0000";
-            numWords_bcd_reg(1) <= "0000";
-            numWords_bcd_reg(2) <= "0000";
-            counter <= "0000000000";
-            txnow <= '0';
-        else
-            if nextState = RX_INIT and curState = INIT then
-                rxdone_reg <= '1';
-            elsif nextState = RX_A and curState = RX_INIT then
-                rxdone_reg <= '1';
-            elsif nextState = RX_A_1 and curState = RX_A then
-                numWords_bcd_reg(2) <= data_rx(3 downto 0);
-                rxdone_reg <= '1';
-            elsif nextState = RX_A_2 and curState = RX_A_1 then
-                numWords_bcd_reg(1) <= data_rx(3 downto 0);
-                start_reg <= '0';
-                rxdone_reg <= '1';
-            elsif nextState = dataConsumer_communication_A and curState = RX_A_2 then
-                numWords_bcd_reg(0) <= data_rx(3 downto 0);
-                start_reg <= '1';
-            elsif nextState = tx_A_init and curState <= dataConsumer_communication_A then
-                start_reg <= '0';
-            elsif curState = dataConsumer_communication_A and dataReady = '1' then
-                memory(to_integer(unsigned(counter))) <= byte;
-                counter <= std_logic_vector(unsigned(counter) + "0000000001");
-            elsif curState = tx_A_init and nextState = tx_A_init then
-                counter_full <= counter;
-            elsif curState = tx_A_init then
-                counter <= "0000000000";
-                txData <= memory(0);
-                txnow <= '1';
-            elsif curState = tx_A and txdone = '1' then
-                txData <= memory(to_integer(unsigned(counter)));
-                txnow <= '1';
-                counter <= std_logic_vector(unsigned(counter) + "0000000001");
-            else
-                rxdone_reg <= rxdone_reg;
-                start_reg <= start_reg;
-                numWords_bcd_reg <= numWords_bcd_reg;
-                counter <= counter;
-                txnow <= '0';
-            end if;
-        end if;
+    if reset = '1' then
+        numWords_bcd_reg(0) <= "0000";
+    elsif clk'event and clk='1' then
+        numWords_bcd_reg(0) <= numWords_bcd_reg_n(0);
     end if;
-end process; -- combi_output
-numWords_bcd <= numWords_bcd_reg;
-rxdone <= rxdone_reg;
-start <= start_reg;
+end process; 
+--------------numWords_bcd_reg_1 register--------------------
+combi_numWords_bcd_reg_1: process(nextState, curState, reset) --combinational logic
+begin
+    if nextState = RX_A_2 and curState = RX_A_1 then
+        numWords_bcd_reg_n(1) <= rxData(3 downto 0);
+    else
+        numWords_bcd_reg_n(1) <= numWords_bcd_reg(1);
+    end if;
+end process;
+seq_numWords_bcd_reg_1: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        numWords_bcd_reg(1) <= "0000";
+    elsif clk'event and clk='1' then
+        numWords_bcd_reg(1) <= numWords_bcd_reg_n(1);
+    end if;
+end process; 
+--------------numWords_bcd_reg_2 register--------------------
+combi_numWords_bcd_reg_2: process(nextState, curState, reset) --combinational logic
+begin
+    if nextState = RX_A_1 and curState = RX_A then
+        numWords_bcd_reg_n(2) <= rxData(3 downto 0);
+    else
+        numWords_bcd_reg_n(2) <= numWords_bcd_reg(2);
+    end if;
+end process;
+seq_numWords_bcd_reg_2: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        numWords_bcd_reg(2) <= "0000";
+    elsif clk'event and clk='1' then
+        numWords_bcd_reg(2) <= numWords_bcd_reg_n(2);
+    end if;
+end process;
+----------rxdone output assignment process---------------------
+seq_rxdone: process(nextState, curState)
+begin
+    rxdone <= '0';
+        if nextState = RX_INIT and curState = INIT then
+            rxdone <= '1';
+        elsif nextState = RX_A and curState = RX_INIT then
+            rxdone <= '1';
+        elsif nextState = RX_A_1 and curState = RX_A then
+            rxdone <= '1';
+        elsif nextState = RX_A_2 and curState = RX_A_1 then
+            rxdone <= '1';
+        end if;
+end process;
 end Behavioral;
