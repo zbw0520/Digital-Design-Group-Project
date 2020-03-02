@@ -61,18 +61,20 @@ entity cmdProc is
 end cmdProc;
 
 architecture Behavioral of cmdProc is
-signal fe, fe_n: std_logic;   --internal signals with 1 bit
-signal data_tx : std_logic_vector(7 downto 0); --internal signals with 8 bits
+signal txdata_reg_n_1, txdata_reg_n_2, txdata_reg_1, txdata_reg_2: std_logic_vector(7 downto 0); --internal signals with 8 bits
 signal counter, counter_full: std_logic_vector(9 downto 0); -- maximum 999
 signal numWords_bcd_reg, numWords_bcd_reg_n: BCD_ARRAY_TYPE(2 downto 0);
 
-type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A, tx_A_init, tx_A);   --define the state type
+type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A);   --define the state type
 signal curState, nextState: state_type; --state variables
-
+type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2);   --define the state type for tx machine
+signal curState_tx, nextState_tx: state_type_tx; --state variables for tx machine
+type state_type_dataConsumer IS (INIT,DATACONSUMER_START,J_tx);   --define the state type for dataconsumer machine
+signal curState_dataConsumer, nextState_dataConsumer: state_type_dataConsumer; --state variables for dataconsumer machine
 begin
 numWords_bcd <= numWords_bcd_reg;
---------------State register combinational logic--------------------------
-combi_nextState: PROCESS(curState, rxnow, rxData, seqDone, dataReady)
+--------------Main State register combinational logic--------------------------
+combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone, dataReady)
 begin
     case curState is
         when INIT =>    --Initial state
@@ -82,7 +84,7 @@ begin
                 nextState <= INIT;
             end if;
         when RX_INIT => --initial receiver state
-            if fe = '1' and rxnow = '1' then
+            if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData = "01000001" or rxData = "01100001" then --A or a
                 nextState <= RX_A;
@@ -94,7 +96,7 @@ begin
                 nextState <= RX_INIT;
             end if;             
         when RX_A =>    --receive first bit
-            if fe = '1' and rxnow = '1' then
+            if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then --0 = "00110000" 9 = "00111001"
                 nextState <= RX_A_1;                  
@@ -102,7 +104,7 @@ begin
                 nextState <= RX_A;
             end if;
         when RX_A_1 =>  --receive second bit
-            if fe = '1' and rxnow = '1' then
+            if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
                 nextState <= RX_A_2;                  
@@ -110,7 +112,7 @@ begin
                 nextState <= RX_A_1;
             end if;
         when RX_A_2 =>  --receive third bit
-            if fe = '1' and rxnow = '1' then
+            if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
                 nextState <= dataConsumer_communication_A;                  
@@ -143,8 +145,8 @@ begin
             nextState <= INIT;
     end case;
 end process; 
----------------state register sequential logic----------------------------------
-seq_state: process (clk, reset)
+---------------Main state register sequential logic----------------------------------
+seq_state_main: process (clk, reset)
 begin
   if reset = '1' then
     curState <= INIT;
@@ -152,19 +154,70 @@ begin
     curState <= nextState;
   end if;
 end process; -- seq
---------------fe register--------------------
-combi_fe: process(framErr) --combinational logic
+--------------Tx State register combinational logic--------------------------
+combi_nextState_tx: PROCESS(curState_tx, nextState, nextState_dataConsumer)
 begin
-        fe_n <= framErr;
-end process;
-seq_fe: process (clk, reset) --sequential logic
-begin
-    if reset = '1' then
-        fe <= '0';
-    elsif clk'event and clk='1' then
-        fe <= fe_n;
-    end if;
+    case curState_tx is
+        when INIT =>    --Initial state
+            if nextState_dataConsumer = J_tx then
+                nextState_tx <= TX_START;
+            else
+                nextState_tx <= INIT;
+            end if;
+        when TX_START =>    --start to transmit
+            if txDone = '1' then
+                nextState_tx <= TX_START_1;
+            else
+                nextState_tx <= TX_START;
+        when TX_START_1 =>    --start to transmit
+            if txDone = '1' then
+                nextState_tx <= TX_START_2;
+            else
+                nextState_tx <= TX_START_1;
+        when others =>
+            nextState_tx <= INIT;
+    end case;
 end process; 
+---------------Tx state register sequential logic----------------------------------
+seq_state_tx: process (clk, reset)
+begin
+  if reset = '1' then
+    curState_tx <= INIT;
+  elsif clk'event and clk='1' then
+    curState_tx <= nextState_tx;
+  end if;
+end process; 
+--------------dataConsumer State register combinational logic--------------------------
+combi_nextState_dataConsumer: PROCESS(curState_dataConsumer, nextState, dataReady)
+begin
+    case curState_dataConsumer is
+        when INIT =>    --Initial state
+            if nextState = dataConsumer_communication_A then
+                nextState_dataConsumer <= DATACONSUMER_START;
+            else
+                nextState_dataConsumer <= INIT;
+            end if;
+        when DATACONSUMER_START =>    --start to get data
+            if dataReady = '1' then
+                nextState_dataConsumer <= J_tx;
+            else
+                nextState_dataConsumer <= DATACONSUMER_START;
+            end if;
+        when J_tx =>
+            nextState_dataConsumer <= J_tx;
+        when others =>
+            nextState_dataConsumer <= INIT;
+    end case;
+end process; 
+---------------dataConsumer state register sequential logic----------------------------------
+seq_state_dataConsumer: process (clk, reset)
+begin
+  if reset = '1' then
+    curState_dataConsumer <= INIT;
+  elsif clk'event and clk='1' then
+    curState_dataConsumer <= nextState_dataConsumer;
+  end if;
+end process; -- seq
 --------------numWords_bcd_reg_0 register--------------------
 combi_numWords_bcd_reg_0: process(nextState, curState, reset) --combinational logic
 begin
@@ -230,4 +283,54 @@ begin
             rxdone <= '1';
         end if;
 end process;
+----------start output assignment process---------------------
+seq_start: process(curState, nextState, dataReady)
+begin
+    start <= '0';
+        if curState = RX_A_2 and nextState = dataConsumer_communication_A then
+            start <= '1';
+        elsif dataReady = '1' then
+            start <= '0';
+        end if;
+end process;
+--------------txdata register---------------------------------
+combi_txdata_reg: process(dataReady) --combinational logic
+begin
+    if dataReady = '1' then
+        if (byte(7 downto 4) <= "1001") then
+            txdata_reg_n_1 <= "0000" & byte(7 downto 4) + "00110000";
+        else
+            txdata_reg_n_1 <= "0000" & byte(7 downto 4) + "00110111";
+        end if;
+        if (byte(3 downto 0) <= "1001") then
+            txdata_reg_n_2 <= "0000" & byte(7 downto 4) + "00110000";
+        else
+            txdata_reg_n_2 <= "0000" & byte(7 downto 4) + "00110111";
+        end if;
+    else
+        txdata_reg_n_1 <= txdata_reg_1;
+        txdata_reg_n_2 <= txdata_reg_2;
+    end if;
+end process;
+seq_txdata_reg: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        txdata_reg_1 <= "00000000";
+        txdata_reg_2 <= "00000000";
+    elsif clk'event and clk='1' then
+        txdata_reg_1 <= txdata_reg_n_1;
+        txdata_reg_2 <= txdata_reg_n_2;
+    end if;
+end process; 
 end Behavioral;
+----------txData output assignment process---------------------
+seq_start: process(curState, nextState, dataReady)
+begin
+    start <= '0';
+        if curState = RX_A_2 and nextState = dataConsumer_communication_A then
+            start <= '1';
+        elsif dataReady = '1' then
+            start <= '0';
+        end if;
+end process;
+--------------txdata register---------------------------------
