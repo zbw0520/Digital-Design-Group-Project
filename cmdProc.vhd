@@ -63,20 +63,22 @@ end cmdProc;
 
 architecture Behavioral of cmdProc is
 signal txdata_reg_n_1, txdata_reg_n_2, txdata_reg_1, txdata_reg_2: std_logic_vector(7 downto 0); --internal signals with 8 bits
-signal counter, counter_full: std_logic_vector(9 downto 0); -- maximum 999
+signal counter_p, counter_p_n: std_logic_vector(2 downto 0);
 signal numWords_bcd_reg, numWords_bcd_reg_n: BCD_ARRAY_TYPE(2 downto 0);
-signal txDone_reg, txDone_reg_n: std_logic;
+signal txDone_reg, txDone_reg_n, en_counter_p, rxnow_reg, rxnow_reg_n: std_logic;
+signal maxIndex_reg_bcd, maxIndex_reg_bcd_n: CHAR_ARRAY_TYPE(2 downto 0);
+signal dataResults_reg_bcd, dataResults_reg_bcd_n: CHAR_ARRAY_TYPE(13 downto 0);
 
-type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A);   --define the state type
+type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A, dataConsumer_communication_P, dataConsumer_communication_L);   --define the state type
 signal curState, nextState: state_type; --state variables
-type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2, J_dataConsumer);   --define the state type for tx machine
+type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2, J_dataConsumer, TX_P, TX_P_1);   --define the state type for tx machine
 signal curState_tx, nextState_tx: state_type_tx; --state variables for tx machine
-type state_type_dataConsumer IS (INIT,DATACONSUMER_START,J_tx);   --define the state type for dataconsumer machine
+type state_type_dataConsumer IS (INIT, DATACONSUMER_START_A, DATACONSUMER_START_P, DATACONSUMER_START_L, J_tx);   --define the state type for dataconsumer machine
 signal curState_dataConsumer, nextState_dataConsumer: state_type_dataConsumer; --state variables for dataconsumer machine
 begin
 numWords_bcd <= numWords_bcd_reg;
 --------------Main State register combinational logic--------------------------
-combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone, dataReady, framErr)
+combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone, rxnow_reg_n, rxnow_reg, dataReady, framErr, nextState_tx, curState_tx)
 begin
     case curState is
         when INIT =>    --Initial state
@@ -90,7 +92,7 @@ begin
                 nextState <= RX_INIT;
             elsif rxData = "01000001" or rxData = "01100001" then --A or a
                 nextState <= RX_A;
-            elsif rxData = "01010000" or rxData = "01110000" then --P or p
+            elsif (rxData = "01010000" or rxData = "01110000") and (rxnow_reg_n = '1' and rxnow_reg = '0')then --P or p
                 nextState <= RX_P;
             elsif rxData = "01001100" or rxData = "01101100" then --L or l
                 nextState <= RX_L;
@@ -128,9 +130,15 @@ begin
                 nextState <= dataConsumer_communication_A;
             end if;
         when RX_P =>
-            
-
+            if counter_p = "111" then
+                nextState <= INIT;
+            else    
+                nextState <= RX_P;
+            end if;
         when RX_L =>
+            nextState <= dataConsumer_communication_L;
+        when dataConsumer_communication_L =>
+            nextState <= dataConsumer_communication_L;
         when others =>
             nextState <= INIT;
     end case;
@@ -151,6 +159,8 @@ begin
         when INIT =>    --Initial state
             if nextState_dataConsumer = J_tx then
                 nextState_tx <= TX_START;
+            elsif nextState=RX_P and (rxnow_reg_n = '1' and rxnow_reg = '0')then
+                nextState_tx <= TX_P;
             else
                 nextState_tx <= INIT;
             end if;
@@ -178,6 +188,12 @@ begin
             else
                 nextState_tx <= J_dataConsumer;
             end if;
+        when TX_P =>
+            if counter_p = "111" then
+                nextState_tx <= INIT;
+            else 
+                nextState_tx <= TX_P;         
+            end if;
         when others =>
             nextState_tx <= INIT;
     end case;
@@ -197,22 +213,22 @@ begin
     case curState_dataConsumer is
         when INIT =>    --Initial state
             if nextState = dataConsumer_communication_A then
-                nextState_dataConsumer <= DATACONSUMER_START;
+                nextState_dataConsumer <= DATACONSUMER_START_A;
             else
                 nextState_dataConsumer <= INIT;
             end if;
-        when DATACONSUMER_START =>    --start to get data
+        when DATACONSUMER_START_A =>    --start to get data
             if dataReady = '1' then
                 nextState_dataConsumer <= J_tx;
             else
-                nextState_dataConsumer <= DATACONSUMER_START;
+                nextState_dataConsumer <= DATACONSUMER_START_A;
             end if;
         when J_tx =>
             if nextState_tx = J_dataConsumer  or nextState = INIT then
                 nextState_dataConsumer <= INIT;
             else
                 nextState_dataConsumer <= J_tx;
-            end if;
+            end if;            
         when others =>
             nextState_dataConsumer <= INIT;
     end case;
@@ -227,7 +243,7 @@ begin
   end if;
 end process; -- seq
 --------------numWords_bcd_reg_0 register--------------------
-combi_numWords_bcd_reg_0: process(nextState, curState, reset) --combinational logic
+combi_numWords_bcd_reg_0: process(nextState, curState) --combinational logic
 begin
     if nextState = dataConsumer_communication_A and curState = RX_A_2 then
         numWords_bcd_reg_n(0) <= rxData(3 downto 0);
@@ -244,7 +260,7 @@ begin
     end if;
 end process; 
 --------------numWords_bcd_reg_1 register--------------------
-combi_numWords_bcd_reg_1: process(nextState, curState, reset) --combinational logic
+combi_numWords_bcd_reg_1: process(nextState, curState) --combinational logic
 begin
     if nextState = RX_A_2 and curState = RX_A_1 then
         numWords_bcd_reg_n(1) <= rxData(3 downto 0);
@@ -261,7 +277,7 @@ begin
     end if;
 end process; 
 --------------numWords_bcd_reg_2 register--------------------
-combi_numWords_bcd_reg_2: process(nextState, curState, reset) --combinational logic
+combi_numWords_bcd_reg_2: process(nextState, curState) --combinational logic
 begin
     if nextState = RX_A_1 and curState = RX_A then
         numWords_bcd_reg_n(2) <= rxData(3 downto 0);
@@ -329,7 +345,7 @@ begin
     end if;
 end process; 
 ----------txdata output assignment process---------------------
-seq_txdata: process(nextState_tx)
+seq_txdata: process(nextState_tx, counter_p_n)
 begin
     txData <= "00000000";
         if nextState_tx = TX_START then
@@ -337,6 +353,20 @@ begin
         elsif nextState_tx = TX_START_1 then
             txData <= txdata_reg_n_2;
         elsif nextState_tx = TX_START_2 then
+            txData <= "00100000";
+        elsif nextState_tx = TX_P and (counter_p_n = "000" or counter_p_n = "001") then
+            txData <= dataResults_reg_bcd_n(6); --output the first ascii byte of peak value
+        elsif nextState_tx = TX_P and counter_p_n = "010" then
+            txData <= dataResults_reg_bcd_n(7); --output the first ascii byte of peak value
+        elsif nextState_tx = TX_P and counter_p_n = "011" then
+            txData <= "00100000"; --output the first ascii byte of peak value
+        elsif nextState_tx = TX_P and counter_p_n = "100" then
+            txData <= maxIndex_reg_bcd_n(2); 
+        elsif nextState_tx = TX_P and counter_p_n = "101" then
+            txData <= maxIndex_reg_bcd_n(1); 
+        elsif nextState_tx = TX_P and counter_p_n = "110" then
+            txData <= maxIndex_reg_bcd_n(0); 
+        elsif nextState_tx = TX_P and counter_p_n = "111" then
             txData <= "00100000";
         end if;
 end process;
@@ -363,6 +393,197 @@ begin
             txNow <= '1';
         elsif curState_tx = TX_START_2 and txdone = '1' then
             txNow <= '1';
+        elsif curState_tx = TX_P and txdone = '1' then
+            txNow <= '1';
         end if;
 end process;
+--------------dataResults register--------------------
+combi_dataResults: process(seqDone) --combinational logic
+begin
+    if seqDone = '1' then
+        if (dataResults(0)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(0) <= "0000" & dataResults(0)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(0) <= "0000" & dataResults(0)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(0)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(1) <= "0000" & dataResults(0)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(1) <= "0000" & dataResults(0)(3 downto 0) + "00110111";
+        end if;
+        -------------------------------------
+        if (dataResults(1)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(2) <= "0000" & dataResults(1)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(2) <= "0000" & dataResults(1)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(1)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(3) <= "0000" & dataResults(1)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(3) <= "0000" & dataResults(1)(3 downto 0) + "00110111";
+        end if;
+        -------------------------------------
+        if (dataResults(2)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(4) <= "0000" & dataResults(2)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(4) <= "0000" & dataResults(2)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(2)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(5) <= "0000" & dataResults(2)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(5) <= "0000" & dataResults(2)(3 downto 0) + "00110111";
+        end if;
+        -------------------------------------
+        if (dataResults(3)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(6) <= "0000" & dataResults(3)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(6) <= "0000" & dataResults(3)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(3)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(7) <= "0000" & dataResults(3)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(7) <= "0000" & dataResults(3)(3 downto 0) + "00110111";
+        end if;
+        -------------------------------------
+        if (dataResults(4)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(8) <= "0000" & dataResults(4)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(8) <= "0000" & dataResults(4)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(4)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(9) <= "0000" & dataResults(4)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(9) <= "0000" & dataResults(4)(3 downto 0) + "00110111";
+        end if;
+        -------------------------------------
+        if (dataResults(5)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(10) <= "0000" & dataResults(5)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(10) <= "0000" & dataResults(5)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(5)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(11) <= "0000" & dataResults(5)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(11) <= "0000" & dataResults(5)(3 downto 0) + "00110111";
+        end if;
+        -------------------------------------
+        if (dataResults(6)(7 downto 4) <= "1001") then
+            dataResults_reg_bcd_n(12) <= "0000" & dataResults(6)(7 downto 4) + "00110000";
+        else
+            dataResults_reg_bcd_n(12) <= "0000" & dataResults(6)(7 downto 4) + "00110111";
+        end if;
+        if (dataResults(6)(3 downto 0) <= "1001") then
+            dataResults_reg_bcd_n(13) <= "0000" & dataResults(6)(3 downto 0) + "00110000";
+        else
+            dataResults_reg_bcd_n(13) <= "0000" & dataResults(6)(3 downto 0) + "00110111";
+        end if;
+    else
+        dataResults_reg_bcd_n <= dataResults_reg_bcd;
+    end if;
+end process;
+seq_dataResults: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        dataResults_reg_bcd(0) <= "00000000";   --high 4 bits
+        dataResults_reg_bcd(1) <= "00000000";   --low 4 bits
+        
+        dataResults_reg_bcd(2) <= "00000000";
+        dataResults_reg_bcd(3) <= "00000000";
+        
+        dataResults_reg_bcd(4) <= "00000000";
+        dataResults_reg_bcd(5) <= "00000000";
+        
+        dataResults_reg_bcd(6) <= "00000000";
+        dataResults_reg_bcd(7) <= "00000000";
+        
+        dataResults_reg_bcd(8) <= "00000000";
+        dataResults_reg_bcd(9) <= "00000000";
+        
+        dataResults_reg_bcd(10) <= "00000000";
+        dataResults_reg_bcd(11) <= "00000000";
+        
+        dataResults_reg_bcd(12) <= "00000000";
+        dataResults_reg_bcd(13) <= "00000000";
+    elsif clk'event and clk='1' then
+        dataResults_reg_bcd <= dataResults_reg_bcd_n;
+    end if;
+end process;
+--------------maxIndex_bcd register--------------------
+combi_maxIndex_reg_bcd: process(seqDone) --combinational logic
+begin
+    if seqDone = '1' then
+        -------------------------------------
+        if (maxIndex(2) <= "1001") then
+            maxIndex_reg_bcd_n(2) <= "0000" & maxIndex(2) + "00110000";
+        else
+            maxIndex_reg_bcd_n(2) <= "0000" & maxIndex(2) + "00110111";
+        end if;
+        -------------------------------------
+        if (maxIndex(1)(3 downto 0) <= "1001") then
+            maxIndex_reg_bcd_n(1) <= "0000" & maxIndex(1) + "00110000";
+        else
+            maxIndex_reg_bcd_n(1) <= "0000" & maxIndex(1) + "00110111";
+        end if;
+        -------------------------------------
+        if (maxIndex(0) <= "1001") then
+            maxIndex_reg_bcd_n(0) <= "0000" & maxIndex(0) + "00110000";
+        else
+            maxIndex_reg_bcd_n(0) <= "0000" & maxIndex(0) + "00110111";
+        end if;
+    else
+        maxIndex_reg_bcd_n <= maxIndex_reg_bcd;
+    end if;
+end process;
+seq_maxIndex: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        maxIndex_reg_bcd(0) <= "00000000";
+        maxIndex_reg_bcd(1) <= "00000000";
+        maxIndex_reg_bcd(2) <= "00000000";
+    elsif clk'event and clk='1' then
+        maxIndex_reg_bcd <= maxIndex_reg_bcd_n;
+    end if;
+end process;
+--------------counter for P--------------------
+combi_counter_p: process(en_counter_p, counter_p, reset) --combinational logic
+begin
+    if en_counter_p = '0' or reset = '1' then
+        counter_p_n <= counter_p;
+    elsif counter_p = "111"  then
+        counter_p_n <= "000";        
+    else
+        counter_p_n <= counter_p + 1;
+    end if;
+end process;
+seq_counter_p: process (clk, reset) --sequential logic
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            counter_p <= "000";
+        else    
+            counter_p <= counter_p_n;
+        end if;
+    end if;
+end process;
+----------en_counter_p assignment process---------------------
+seq_en_counter_p: process(curState_tx, txdone)
+begin
+    en_counter_p <= '0';
+        if curState_tx = TX_P and txdone = '1' then
+            en_counter_p <= '1';
+        end if;
+end process;
+--------------rxnow register--------------------        rxnow_reg_n = '1' and rxnow_reg = '0' --rising edge
+combi_rxnow_reg: process(rxnow) --combinational logic
+begin
+    rxnow_reg_n <= rxnow;
+end process;
+seq_rxnow_reg: process (clk, reset) --sequential logic
+begin
+    if reset = '1' then
+        rxnow_reg <= '0';
+    elsif clk'event and clk='1' then
+        rxnow_reg <= rxnow_reg_n;
+    end if;
+end process; 
 end Behavioral;
