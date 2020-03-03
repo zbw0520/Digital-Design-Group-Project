@@ -15,3 +15,11 @@ they are all quite easy to learn
 ### 3. Try to do simulate in vivado which is more efficient and more dedicated and some libraries we are using only compatible with vivado.(apply to all two files)
 ### 4. Use start signal in cmdProc.vhd file to control the the rate of dataConsumer module's providing data. (apply to cmd_Proc only)
 ### 5. Try to use different files to write the module we are coding. E.g. we can use file A to implement state machine 1 and file B to implement state machine 2 and another file for the top port definition. There is 2 benefits of doing this. One is that we can achieve higher synthesis speed to speed up our developing process. The other one is that we can demonstrate our project management skills and achieve better marks. (apply to both files)
+
+
+# Progress report
+2/3/2020
+Axxx command control flow has been done and simulation is successful!
+
+3/32020
+P command control flow has been done and simulation is successful!
