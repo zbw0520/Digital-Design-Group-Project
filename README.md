@@ -21,5 +21,8 @@ they are all quite easy to learn
 2/3/2020
 Axxx command control flow has been done and simulation is successful!
 
-3/32020
+3/3/2020
 P command control flow has been done and simulation is successful!
+
+3/3/2020
+All command control flow has been done and cmdProc.vhd behavioural simulation turns out to be successful! cmdProc.vhd completed.
