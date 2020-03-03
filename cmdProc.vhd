@@ -65,13 +65,14 @@ architecture Behavioral of cmdProc is
 signal txdata_reg_n_1, txdata_reg_n_2, txdata_reg_1, txdata_reg_2: std_logic_vector(7 downto 0); --internal signals with 8 bits
 signal counter_p, counter_p_n: std_logic_vector(2 downto 0);
 signal numWords_bcd_reg, numWords_bcd_reg_n: BCD_ARRAY_TYPE(2 downto 0);
-signal txDone_reg, txDone_reg_n, en_counter_p, rxnow_reg, rxnow_reg_n: std_logic;
+signal txDone_reg, txDone_reg_n, en_counter_p, rxnow_reg, rxnow_reg_n, en_counter_l: std_logic;
 signal maxIndex_reg_bcd, maxIndex_reg_bcd_n: CHAR_ARRAY_TYPE(2 downto 0);
 signal dataResults_reg_bcd, dataResults_reg_bcd_n: CHAR_ARRAY_TYPE(13 downto 0);
+signal counter_l, counter_l_n: std_logic_vector(4 downto 0);
 
 type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A, dataConsumer_communication_P, dataConsumer_communication_L);   --define the state type
 signal curState, nextState: state_type; --state variables
-type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2, J_dataConsumer, TX_P, TX_P_1);   --define the state type for tx machine
+type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2, J_dataConsumer, TX_P, TX_L);   --define the state type for tx machine
 signal curState_tx, nextState_tx: state_type_tx; --state variables for tx machine
 type state_type_dataConsumer IS (INIT, DATACONSUMER_START_A, DATACONSUMER_START_P, DATACONSUMER_START_L, J_tx);   --define the state type for dataconsumer machine
 signal curState_dataConsumer, nextState_dataConsumer: state_type_dataConsumer; --state variables for dataconsumer machine
@@ -136,9 +137,11 @@ begin
                 nextState <= RX_P;
             end if;
         when RX_L =>
-            nextState <= dataConsumer_communication_L;
-        when dataConsumer_communication_L =>
-            nextState <= dataConsumer_communication_L;
+            if counter_l = "10100" then
+                nextState <= INIT;
+            else
+                nextState <= RX_L;
+            end if;
         when others =>
             nextState <= INIT;
     end case;
@@ -153,7 +156,7 @@ begin
   end if;
 end process; -- seq
 --------------Tx State register combinational logic--------------------------
-combi_nextState_tx: PROCESS(nextState, curState_tx, nextState_dataConsumer, txDone_reg, txDone_reg_n)
+combi_nextState_tx: PROCESS(nextState, curState_tx, nextState_dataConsumer, txDone_reg, txDone_reg_n, rxnow_reg_n, rxnow_reg, counter_l, counter_p)
 begin
     case curState_tx is
         when INIT =>    --Initial state
@@ -161,6 +164,8 @@ begin
                 nextState_tx <= TX_START;
             elsif nextState=RX_P and (rxnow_reg_n = '1' and rxnow_reg = '0')then
                 nextState_tx <= TX_P;
+            elsif nextState=RX_L and (rxnow_reg_n = '1' and rxnow_reg = '0')then
+                nextState_tx <= TX_L;
             else
                 nextState_tx <= INIT;
             end if;
@@ -193,6 +198,12 @@ begin
                 nextState_tx <= INIT;
             else 
                 nextState_tx <= TX_P;         
+            end if;
+        when TX_L =>
+            if counter_l = "10101" then
+                nextState_tx <= INIT;
+            else 
+                nextState_tx <= TX_L;         
             end if;
         when others =>
             nextState_tx <= INIT;
@@ -345,7 +356,7 @@ begin
     end if;
 end process; 
 ----------txdata output assignment process---------------------
-seq_txdata: process(nextState_tx, counter_p_n)
+seq_txdata: process(nextState_tx, counter_p_n, counter_l_n)
 begin
     txData <= "00000000";
         if nextState_tx = TX_START then
@@ -367,6 +378,48 @@ begin
         elsif nextState_tx = TX_P and counter_p_n = "110" then
             txData <= maxIndex_reg_bcd_n(0); 
         elsif nextState_tx = TX_P and counter_p_n = "111" then
+            txData <= "00100000";
+        elsif nextState_tx = TX_L and (counter_l_n = "00000" or counter_l_n = "00001") then
+            txData <= dataResults_reg_bcd_n(0); 
+        elsif nextState_tx = TX_L and counter_l_n = "00010" then
+            txData <= dataResults_reg_bcd_n(1);
+        elsif nextState_tx = TX_L and counter_l_n = "00011" then
+            txData <= "00100000"; 
+        elsif nextState_tx = TX_L and counter_l_n = "00100" then
+            txData <= dataResults_reg_bcd_n(2);
+        elsif nextState_tx = TX_L and counter_l_n = "00101" then
+            txData <= dataResults_reg_bcd_n(3);
+        elsif nextState_tx = TX_L and counter_l_n = "00110" then
+            txData <= "00100000";
+        elsif nextState_tx = TX_L and counter_l_n = "00111" then
+            txData <= dataResults_reg_bcd_n(4); 
+        elsif nextState_tx = TX_L and counter_l_n = "01000" then
+            txData <= dataResults_reg_bcd_n(5);
+        elsif nextState_tx = TX_L and counter_l_n = "01001" then
+            txData <= "00100000"; 
+        elsif nextState_tx = TX_L and counter_l_n = "01010" then
+            txData <= dataResults_reg_bcd_n(6);
+        elsif nextState_tx = TX_L and counter_l_n = "01011" then
+            txData <= dataResults_reg_bcd_n(7);
+        elsif nextState_tx = TX_L and counter_l_n = "01100" then
+            txData <= "00100000";
+        elsif nextState_tx = TX_L and counter_l_n = "01101" then
+            txData <= dataResults_reg_bcd_n(8);
+        elsif nextState_tx = TX_L and counter_l_n = "01110" then
+            txData <= dataResults_reg_bcd_n(9);
+        elsif nextState_tx = TX_L and counter_l_n = "01111" then
+            txData <= "00100000";
+        elsif nextState_tx = TX_L and counter_l_n = "10000" then
+            txData <= dataResults_reg_bcd_n(10);
+        elsif nextState_tx = TX_L and counter_l_n = "10001" then
+            txData <= dataResults_reg_bcd_n(11);
+        elsif nextState_tx = TX_L and counter_l_n = "10010" then
+            txData <= "00100000";
+        elsif nextState_tx = TX_L and counter_l_n = "10011" then
+            txData <= dataResults_reg_bcd_n(12);
+        elsif nextState_tx = TX_L and counter_l_n = "10100" then
+            txData <= dataResults_reg_bcd_n(13);
+        elsif nextState_tx = TX_L and counter_l_n = "10101" then
             txData <= "00100000";
         end if;
 end process;
@@ -394,6 +447,8 @@ begin
         elsif curState_tx = TX_START_2 and txdone = '1' then
             txNow <= '1';
         elsif curState_tx = TX_P and txdone = '1' then
+            txNow <= '1';
+        elsif curState_tx = TX_L and txdone = '1' then
             txNow <= '1';
         end if;
 end process;
@@ -547,10 +602,10 @@ end process;
 --------------counter for P--------------------
 combi_counter_p: process(en_counter_p, counter_p, reset) --combinational logic
 begin
-    if en_counter_p = '0' or reset = '1' then
-        counter_p_n <= counter_p;
-    elsif counter_p = "111"  then
-        counter_p_n <= "000";        
+    if counter_p = "111"  then
+        counter_p_n <= "000"; 
+    elsif en_counter_p = '0' or reset = '1' then
+        counter_p_n <= counter_p;      
     else
         counter_p_n <= counter_p + 1;
     end if;
@@ -585,5 +640,34 @@ begin
     elsif clk'event and clk='1' then
         rxnow_reg <= rxnow_reg_n;
     end if;
+end process;
+--------------counter for L--------------------
+combi_counter_l: process(en_counter_l, counter_l, reset) --combinational logic
+begin
+    if counter_l = "10101"  then
+        counter_l_n <= "00000"; 
+    elsif en_counter_l = '0' or reset = '1' then
+        counter_l_n <= counter_l;    
+    else
+        counter_l_n <= counter_l + 1;
+    end if;
+end process;
+seq_counter_l: process (clk, reset) --sequential logic
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            counter_l <= "00000";
+        else    
+            counter_l <= counter_l_n;
+        end if;
+    end if;
 end process; 
+----------en_counter_l assignment process---------------------
+seq_en_counter_l: process(curState_tx, txdone)
+begin
+    en_counter_l <= '0';
+        if curState_tx = TX_L and txdone = '1' then
+            en_counter_l <= '1';
+        end if;
+end process;
 end Behavioral;
