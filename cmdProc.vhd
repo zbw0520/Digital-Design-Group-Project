@@ -79,7 +79,7 @@ signal curState_dataConsumer, nextState_dataConsumer: state_type_dataConsumer; -
 begin
 numWords_bcd <= numWords_bcd_reg;
 --------------Main State register combinational logic--------------------------
-combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone, rxnow_reg_n, rxnow_reg, dataReady, framErr, nextState_tx, curState_tx)
+combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone, rxnow_reg_n, rxnow_reg, dataReady, framErr, nextState_tx, curState_tx, counter_p, counter_l)
 begin
     case curState is
         when INIT =>    --Initial state
@@ -93,9 +93,9 @@ begin
                 nextState <= RX_INIT;
             elsif rxData = "01000001" or rxData = "01100001" then --A or a
                 nextState <= RX_A;
-            elsif (rxData = "01010000" or rxData = "01110000") and (rxnow_reg_n = '1' and rxnow_reg = '0')then --P or p
+            elsif (rxData = "01010000" or rxData = "01110000") and (rxnow_reg_n = '1' and rxnow_reg = '0') then --P or p
                 nextState <= RX_P;
-            elsif rxData = "01001100" or rxData = "01101100" then --L or l
+            elsif (rxData = "01001100" or rxData = "01101100") and (rxnow_reg_n = '1' and rxnow_reg = '0') then --L or l
                 nextState <= RX_L;
             else
                 nextState <= RX_INIT;
@@ -137,7 +137,7 @@ begin
                 nextState <= RX_P;
             end if;
         when RX_L =>
-            if counter_l = "10100" then
+            if counter_l = "10101" then
                 nextState <= INIT;
             else
                 nextState <= RX_L;
@@ -254,7 +254,7 @@ begin
   end if;
 end process; -- seq
 --------------numWords_bcd_reg_0 register--------------------
-combi_numWords_bcd_reg_0: process(nextState, curState) --combinational logic
+combi_numWords_bcd_reg_0: process(nextState, curState, rxData, numWords_bcd_reg(0)) --combinational logic
 begin
     if nextState = dataConsumer_communication_A and curState = RX_A_2 then
         numWords_bcd_reg_n(0) <= rxData(3 downto 0);
@@ -271,7 +271,7 @@ begin
     end if;
 end process; 
 --------------numWords_bcd_reg_1 register--------------------
-combi_numWords_bcd_reg_1: process(nextState, curState) --combinational logic
+combi_numWords_bcd_reg_1: process(nextState, curState, rxData, numWords_bcd_reg(1)) --combinational logic
 begin
     if nextState = RX_A_2 and curState = RX_A_1 then
         numWords_bcd_reg_n(1) <= rxData(3 downto 0);
@@ -288,7 +288,7 @@ begin
     end if;
 end process; 
 --------------numWords_bcd_reg_2 register--------------------
-combi_numWords_bcd_reg_2: process(nextState, curState) --combinational logic
+combi_numWords_bcd_reg_2: process(nextState, curState, rxData, numWords_bcd_reg(2)) --combinational logic
 begin
     if nextState = RX_A_1 and curState = RX_A then
         numWords_bcd_reg_n(2) <= rxData(3 downto 0);
@@ -327,7 +327,7 @@ begin
         end if;
 end process;
 --------------txdata register---------------------------------
-combi_txdata_reg: process(dataReady) --combinational logic
+combi_txdata_reg: process(dataReady, byte, txdata_reg_1, txdata_reg_2) --combinational logic
 begin
     if dataReady = '1' then
         if (byte(7 downto 4) <= "1001") then
@@ -356,7 +356,7 @@ begin
     end if;
 end process; 
 ----------txdata output assignment process---------------------
-seq_txdata: process(nextState_tx, counter_p_n, counter_l_n)
+seq_txdata: process(nextState_tx, counter_p_n, counter_l_n, txdata_reg_n_1, txdata_reg_n_2, dataResults_reg_bcd_n, maxIndex_reg_bcd_n)
 begin
     txData <= "00000000";
         if nextState_tx = TX_START then
@@ -453,7 +453,7 @@ begin
         end if;
 end process;
 --------------dataResults register--------------------
-combi_dataResults: process(seqDone) --combinational logic
+combi_dataResults: process(seqDone, dataResults, dataResults_reg_bcd) --combinational logic
 begin
     if seqDone = '1' then
         if (dataResults(0)(7 downto 4) <= "1001") then
@@ -564,7 +564,7 @@ begin
     end if;
 end process;
 --------------maxIndex_bcd register--------------------
-combi_maxIndex_reg_bcd: process(seqDone) --combinational logic
+combi_maxIndex_reg_bcd: process(seqDone, maxIndex, maxIndex_reg_bcd) --combinational logic
 begin
     if seqDone = '1' then
         -------------------------------------

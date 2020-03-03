@@ -249,9 +249,21 @@ begin
    -----------------------------
    -- issue second read cmd L
    -----------------------------
-   -- P: 1, 01001100, 1 (idle - 1, start bit - 0, P (0101_0000) in order of LSB first, stop bit -1)
+   -- L: 1, 01001100, 1 (idle - 1, start bit - 0, L (0100_1100) in order of LSB first, stop bit -1)
    '0' after 50000 us, '0' after 50104 us, '0' after 50208 us, '1' after 50312 us, '1' after 50416 us,
    '0' after 50520 us, '0' after 50624 us, '1' after 50728 us, '0' after 50832 us, '1' after 50936 us,
+    -----------------------------
+    -- issue second read cmd p
+    -----------------------------
+    -- p: 1, 01110000, 1 (idle - 1, start bit - 0, P (0111_0000) in order of LSB first, stop bit -1)
+    '0' after 75000 us, '0' after 75104 us, '0' after 75208 us, '0' after 75312 us, '0' after 75416 us,
+    '1' after 75520 us, '1' after 75624 us, '1' after 75728 us, '0' after 75832 us, '1' after 75936 us,
+   -----------------------------
+    -- issue second read cmd l
+    -----------------------------
+    -- l: 1, 01101100, 1 (idle - 1, start bit - 0, l (0110_1100) in order of LSB first, stop bit -1)
+    '0' after 90000 us, '0' after 90104 us, '0' after 90208 us, '1' after 90312 us, '1' after 90416 us,
+    '0' after 90520 us, '0' after 90624 us, '1' after 90728 us, '0' after 90832 us, '1' after 90936 us,
   -----------------------------
   -- issue second read cmd A013
   -----------------------------
@@ -266,8 +278,31 @@ begin
   '1' after 135020 us,  '1' after 135124 us,  '0' after 135228 us,  '0' after 135332 us,  '1' after 135436 us,  
   -- 3: 0, 11001100, 1 (start bit - 0, decimal 2 (0011_0011) in order of LSB first, stop bit -1)
   '0' after 135800 us, '1' after 135904 us, '1' after 136008 us, '0' after 136112 us, '0' after 136216 us, 
-  '1' after 136320 us, '1' after 136424 us, '0' after 136528 us, '0' after 136632 us, '1' after 136736 us;
-
+  '1' after 136320 us, '1' after 136424 us, '0' after 136528 us, '0' after 136632 us, '1' after 136736 us,
+-----------------------------
+-- issue second read cmd P
+-----------------------------
+-- P: 1, 01010000, 1 (idle - 1, start bit - 0, P (0101_0000) in order of LSB first, stop bit -1)
+  '0' after 180000 us, '0' after 180104 us, '0' after 180208 us, '0' after 180312 us, '0' after 180416 us,
+  '1' after 180520 us, '0' after 180624 us, '1' after 180728 us, '0' after 180832 us, '1' after 180936 us,
+ -----------------------------
+ -- issue second read cmd L
+ -----------------------------
+ -- L: 1, 01001100, 1 (idle - 1, start bit - 0, L (0100_1100) in order of LSB first, stop bit -1)
+ '0' after 190000 us, '0' after 190104 us, '0' after 190208 us, '1' after 190312 us, '1' after 190416 us,
+ '0' after 190520 us, '0' after 190624 us, '1' after 190728 us, '0' after 190832 us, '1' after 190936 us,
+  -----------------------------
+  -- issue second read cmd p
+  -----------------------------
+  -- p: 1, 01110000, 1 (idle - 1, start bit - 0, P (0111_0000) in order of LSB first, stop bit -1)
+  '0' after 215000 us, '0' after 215104 us, '0' after 215208 us, '0' after 215312 us, '0' after 215416 us,
+  '1' after 215520 us, '1' after 215624 us, '1' after 215728 us, '0' after 215832 us, '1' after 215936 us,
+ -----------------------------
+  -- issue second read cmd l
+  -----------------------------
+  -- l: 1, 01101100, 1 (idle - 1, start bit - 0, l (0110_1100) in order of LSB first, stop bit -1)
+  '0' after 230000 us, '0' after 230104 us, '0' after 230208 us, '1' after 230312 us, '1' after 230416 us,
+  '0' after 230520 us, '0' after 230624 us, '1' after 230728 us, '0' after 230832 us, '1' after 230936 us;
 
 
 ----------------------------------------
