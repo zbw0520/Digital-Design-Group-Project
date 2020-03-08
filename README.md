@@ -29,3 +29,6 @@ All command control flow has been done and cmdProc.vhd behavioural simulation tu
 
 6/3/2020
 The bit stream file has been generated and cmdProc.vhd can be synthesized and implemented.
+
+8/3/2020
+In previous cmdProc.vhd file, bugs are found such as cannot output correctly when input a001 and when input is axxx, output is xxx-1. These bugs have been fixed. However, when trying to generate bitstream file, I found there is some problems on constraints. Thus, I add some code to the .xdc file to fix the lack of constraints and also suppress some unnecessary errors. 
