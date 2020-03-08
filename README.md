@@ -26,3 +26,6 @@ P command control flow has been done and simulation is successful!
 
 3/3/2020
 All command control flow has been done and cmdProc.vhd behavioural simulation turns out to be successful! cmdProc.vhd completed.
+
+6/3/2020
+The bit stream file has been generated and cmdProc.vhd can be synthesized and implemented.
