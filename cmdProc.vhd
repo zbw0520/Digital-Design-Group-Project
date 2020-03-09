@@ -72,28 +72,30 @@ signal counter_l, counter_l_n: std_logic_vector(4 downto 0);
 
 type state_type IS (INIT, RX_INIT, RX_A, RX_P, RX_L, RX_A_1, RX_A_2, dataConsumer_communication_A, dataConsumer_communication_P, dataConsumer_communication_L);   --define the state type
 signal curState, nextState: state_type; --state variables
-type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2, J_dataConsumer, TX_P, TX_L);   --define the state type for tx machine
+type state_type_tx IS (INIT, TX_START, TX_START_1, TX_START_2, J_dataConsumer, TX_P, TX_L, TX_crlf);   --define the state type for tx machine
 signal curState_tx, nextState_tx: state_type_tx; --state variables for tx machine
 type state_type_dataConsumer IS (INIT, DATACONSUMER_START_A, J_tx);   --define the state type for dataconsumer machine
 signal curState_dataConsumer, nextState_dataConsumer: state_type_dataConsumer; --state variables for dataconsumer machine
+type state_type_tx_ctrl IS(INIT, TX_START, TX_START_1, TX_END);
+signal curState_tx_crlf, nextState_tx_crlf: state_type_tx_ctrl;
 begin
 numWords_bcd <= numWords_bcd_reg;
 --------------Main State register combinational logic--------------------------
-combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone, rxnow_reg_n, rxnow_reg, framErr, counter_p, counter_l, nextState_tx)
+combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone_reg, rxnow_reg, framErr, counter_p, counter_l, curState_tx)
 begin
     case curState is
         when INIT =>    --Initial state
-            if rxnow = '1' then
+            if rxnow = '1' and curState_tx /= TX_START then
                 nextState <= RX_INIT;
-            else
+            else 
                 nextState <= INIT;
             end if;
         when RX_INIT => --initial receiver state
             if rxData = "01000001" or rxData = "01100001" then --A or a
                 nextState <= RX_A;
-            elsif (rxData = "01010000" or rxData = "01110000") and (rxnow_reg_n = '1' and rxnow_reg = '0') then --P or p
+            elsif (rxData = "01010000" or rxData = "01110000") and rxnow_reg = '0' then --P or p
                 nextState <= RX_P;
-            elsif (rxData = "01001100" or rxData = "01101100") and (rxnow_reg_n = '1' and rxnow_reg = '0') then --L or l
+            elsif (rxData = "01001100" or rxData = "01101100") and rxnow_reg = '0' then --L or l
                 nextState <= RX_L;
             else
                 nextState <= RX_INIT;
@@ -102,7 +104,9 @@ begin
             if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then --0 = "00110000" 9 = "00111001"
-                nextState <= RX_A_1;                  
+                nextState <= RX_A_1;    
+            elsif (rxData <= "00110000" or rxData >= "00111001") and rxnow = '1' then
+                nextState <= RX_INIT;
             else
                 nextState <= RX_A;
             end if;
@@ -110,7 +114,9 @@ begin
             if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
-                nextState <= RX_A_2;                  
+                nextState <= RX_A_2; 
+            elsif (rxData <= "00110000" or rxData >= "00111001") and rxnow = '1' then
+                nextState <= RX_INIT;
             else
                 nextState <= RX_A_1;
             end if;
@@ -118,12 +124,14 @@ begin
             if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
-                nextState <= dataConsumer_communication_A;                  
+                nextState <= dataConsumer_communication_A; 
+            elsif (rxData <= "00110000" or rxData >= "00111001") and rxnow = '1' then
+                    nextState <= RX_INIT;
             else
                 nextState <= RX_A_2;
             end if;
         when dataConsumer_communication_A =>    
-            if seqDone_reg = '1' and nextState_tx = J_dataConsumer then
+            if seqDone_reg = '1' then-----------------------
                 nextState <= INIT;
             else
                 nextState <= dataConsumer_communication_A;
@@ -156,55 +164,69 @@ begin
     end if;
 end process; -- seq
 --------------Tx State register combinational logic--------------------------
-combi_nextState_tx: PROCESS(nextState, curState_tx, nextState_dataConsumer, txDone_reg, txDone_reg_n, rxnow_reg_n, rxnow_reg, counter_l, counter_p)
+combi_nextState_tx: PROCESS(curState, nextState, curState_tx, curState_dataConsumer, txDone_reg, txDone, rxnow_reg, counter_l, counter_p, curState_tx_crlf)
 begin
     case curState_tx is
         when INIT =>    --Initial state
-            if nextState_dataConsumer = J_tx then
+            if curState_dataConsumer = J_tx then
                 nextState_tx <= TX_START;
-            elsif nextState=RX_P and (rxnow_reg_n = '1' and rxnow_reg = '0')then
+            elsif nextState=RX_P and rxnow_reg = '0' then
                 nextState_tx <= TX_P;
-            elsif nextState=RX_L and (rxnow_reg_n = '1' and rxnow_reg = '0')then
+            elsif nextState=RX_L and rxnow_reg = '0' then
                 nextState_tx <= TX_L;
             else
                 nextState_tx <= INIT;
             end if;
+            
         when TX_START =>    --start to transmit
-            if txDone_reg = '1' and txDone_reg_n = '0' then
+            if txDone_reg = '1' and txDone = '0' then
                 nextState_tx <= TX_START_1;
             else
                 nextState_tx <= TX_START;
             end if;
+            
         when TX_START_1 =>    --start to transmit
-            if txDone_reg = '1' and txDone_reg_n = '0' then
+            if txDone_reg = '1' and txDone = '0' then
                 nextState_tx <= TX_START_2;
             else
                 nextState_tx <= TX_START_1;
             end if;
+            
         when TX_START_2 =>
-            if txDone_reg = '1' and txDone_reg_n = '0' then
+            if txDone_reg = '1' and txDone = '0' then
                 nextState_tx <= J_dataConsumer;
+            elsif curState = INIT then
+                nextState_tx <= TX_crlf;
             else
                 nextState_tx <= TX_START_2;
             end if;
+        when TX_crlf =>
+            if curState_tx_crlf = TX_END then
+                nextState_tx <= INIT;
+            else
+                nextState_tx <= TX_crlf;
+            end if;
         when J_dataConsumer =>
-            if nextState_dataConsumer = J_tx or seqDone_reg = '1' then
+            if curState_dataConsumer = J_tx or seqDone_reg = '1' or curState = INIT then
                 nextState_tx <= INIT;
             else
                 nextState_tx <= J_dataConsumer;
             end if;
+            
         when TX_P =>
             if counter_p = "111" then
-                nextState_tx <= INIT;
+                nextState_tx <= TX_crlf;
             else 
                 nextState_tx <= TX_P;         
             end if;
+            
         when TX_L =>
             if counter_l = "10101" then
-                nextState_tx <= INIT;
+                nextState_tx <= TX_crlf;
             else 
                 nextState_tx <= TX_L;         
             end if;
+            
         when others =>
             nextState_tx <= INIT;
     end case;
@@ -220,28 +242,70 @@ if rising_edge(clk) then
     end if;
 end if;
 end process; 
+--------------Tx_CRLF State register combinational logic--------------------------
+combi_nextState_tx_crlf: PROCESS(curState_tx, txDone_reg, txDone, curState_tx_crlf)
+begin
+    case curState_tx_crlf is
+        when INIT =>    --Initial state
+            if curState_tx = TX_CRLF then
+                nextState_tx_crlf <= TX_START;
+            else
+                nextState_tx_crlf <= INIT;
+            end if;
+        when TX_START =>    --start to transmit
+            if txDone_reg = '1' and txDone = '0' then
+                nextState_tx_crlf <= TX_START_1;
+            else
+                nextState_tx_crlf <= TX_START;
+            end if;
+        when TX_START_1 =>
+            if txDone_reg = '1' and txDone = '0' then
+                nextState_tx_crlf <= TX_END;
+            else
+                nextState_tx_crlf <= TX_START_1;
+            end if;
+        when TX_END =>
+            nextState_tx_crlf <= INIT;
+        when others =>
+            nextState_tx_crlf <= INIT;
+    end case;
+end process; 
+---------------Tx_CRLF state register sequential logic----------------------------------
+seq_state_tx_crlf: process (clk, reset)
+begin
+if rising_edge(clk) then
+    if reset = '1' then
+        curState_tx_crlf <= INIT;
+    else
+        curState_tx_crlf <= nextState_tx_crlf;
+    end if;
+end if;
+end process; 
 --------------dataConsumer State register combinational logic--------------------------
-combi_nextState_dataConsumer: PROCESS(curState_dataConsumer, nextState, dataReady, nextState_tx)
+combi_nextState_dataConsumer: PROCESS(curState_dataConsumer, curState, dataReady, curState_tx)
 begin
     case curState_dataConsumer is
         when INIT =>    --Initial state
-            if nextState = dataConsumer_communication_A then
+            if curState = dataConsumer_communication_A then
                 nextState_dataConsumer <= DATACONSUMER_START_A;
             else
                 nextState_dataConsumer <= INIT;
             end if;
+            
         when DATACONSUMER_START_A =>    --start to get data
             if dataReady = '1' then
                 nextState_dataConsumer <= J_tx;
             else
                 nextState_dataConsumer <= DATACONSUMER_START_A;
             end if;
+            
         when J_tx =>
-            if nextState_tx = J_dataConsumer  or nextState = INIT then
+            if curState_tx = J_dataConsumer  or curState = INIT then
                 nextState_dataConsumer <= INIT;
             else
                 nextState_dataConsumer <= J_tx;
-            end if;            
+            end if; 
+                       
         when others =>
             nextState_dataConsumer <= INIT;
     end case;
@@ -315,28 +379,18 @@ if rising_edge(clk) then
 end if;
 end process;
 ----------rxdone output assignment process---------------------
-combi_rxdone: process(nextState, curState)
+combi_rxdone: process(rxnow, rxnow_reg)
 begin
     rxdone <= '0';
-        if nextState = RX_INIT and curState = INIT then
-            rxdone <= '1';
-        elsif nextState = RX_A and curState = RX_INIT then
-            rxdone <= '1';
-        elsif nextState = RX_A_1 and curState = RX_A then
-            rxdone <= '1';
-        elsif nextState = RX_A_2 and curState = RX_A_1 then
-            rxdone <= '1';
+        if rxnow = '1' and rxnow_reg = '0' then
+            rxdone <= '1'; 
         end if;
 end process;
 ----------start output assignment process---------------------
-combi_start: process(curState, nextState, curState_dataConsumer, nextState_dataConsumer, seqDone_reg)
+combi_start: process(curState_dataConsumer, dataReady)
 begin
     start <= '0';
-        if seqDone_reg = '0' and (curState = RX_A_2 and nextState = dataConsumer_communication_A) then
-            start <= '1';
-        elsif seqDone_reg = '0' and (curState_dataConsumer = J_tx and nextState_dataConsumer = INIT) then
-            start <= '1';
-        elsif seqDone_reg = '1' and curState = dataConsumer_communication_A and curState_dataConsumer = dataConsumer_start_A then
+        if curState_dataConsumer = DATACONSUMER_START_A and dataReady /= '1' then
             start <= '1';
         end if;
 end process;
@@ -372,70 +426,74 @@ if rising_edge(clk) then
 end if;
 end process; 
 ----------txdata output assignment process---------------------
-combi_txdata: process(nextState_tx, counter_p_n, counter_l_n, txdata_reg_1, txdata_reg_2, dataResults_reg_bcd, maxIndex_reg_bcd)
+combi_txdata: process(curState_tx, counter_p, counter_l_n, txdata_reg_1, txdata_reg_2, dataResults_reg_bcd, maxIndex_reg_bcd, curState)
 begin
     txData <= "00000000";
-        if nextState_tx = TX_START then
+        if curState_tx = TX_START then
             txData <= txdata_reg_1;
-        elsif nextState_tx = TX_START_1 then
+        elsif curState_tx = TX_START_1 then
             txData <= txdata_reg_2;
-        elsif nextState_tx = TX_START_2 then
+        elsif curState_tx = TX_START_2 then
             txData <= "00100000";
-        elsif nextState_tx = TX_P and (counter_p_n = "000" or counter_p_n = "001") then
+        elsif curState_tx_crlf = TX_START then
+            txData <= "00001101";
+        elsif curState_tx_crlf = TX_START_1 then
+            txData <= "00001010";
+        elsif curState_tx = TX_P and (counter_p = "000" or counter_p = "001") then
             txData <= dataResults_reg_bcd(6); --output the first ascii byte of peak value------------------
-        elsif nextState_tx = TX_P and counter_p_n = "010" then
+        elsif curState_tx = TX_P and counter_p = "010" then
             txData <= dataResults_reg_bcd(7); --output the first ascii byte of peak value-----------------
-        elsif nextState_tx = TX_P and counter_p_n = "011" then
+        elsif curState_tx = TX_P and counter_p = "011" then
             txData <= "00100000"; --output the first ascii byte of peak value
-        elsif nextState_tx = TX_P and counter_p_n = "100" then
-            txData <= maxIndex_reg_bcd(2); -----------------
-        elsif nextState_tx = TX_P and counter_p_n = "101" then
+        elsif curState_tx = TX_P and counter_p = "100" then
+            txData <= maxIndex_reg_bcd(2); ----------------
+        elsif curState_tx = TX_P and counter_p = "101" then
             txData <= maxIndex_reg_bcd(1); -----------------
-        elsif nextState_tx = TX_P and counter_p_n = "110" then
+        elsif curState_tx = TX_P and counter_p = "110" then
             txData <= maxIndex_reg_bcd(0); -----------------
-        elsif nextState_tx = TX_P and counter_p_n = "111" then
+        elsif curState_tx = TX_P and counter_p = "111" then
             txData <= "00100000";
-        elsif nextState_tx = TX_L and (counter_l_n = "00000" or counter_l_n = "00001") then
+        elsif curState_tx = TX_L and (counter_l_n = "00000" or counter_l_n = "00001") then
             txData <= dataResults_reg_bcd(0); -----------------
-        elsif nextState_tx = TX_L and counter_l_n = "00010" then
+        elsif curState_tx = TX_L and counter_l_n = "00010" then
             txData <= dataResults_reg_bcd(1);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "00011" then
+        elsif curState_tx = TX_L and counter_l_n = "00011" then
             txData <= "00100000"; 
-        elsif nextState_tx = TX_L and counter_l_n = "00100" then
+        elsif curState_tx = TX_L and counter_l_n = "00100" then
             txData <= dataResults_reg_bcd(2);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "00101" then
+        elsif curState_tx = TX_L and counter_l_n = "00101" then
             txData <= dataResults_reg_bcd(3);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "00110" then
+        elsif curState_tx = TX_L and counter_l_n = "00110" then
             txData <= "00100000";
-        elsif nextState_tx = TX_L and counter_l_n = "00111" then
+        elsif curState_tx = TX_L and counter_l_n = "00111" then
             txData <= dataResults_reg_bcd(4); -----------------
-        elsif nextState_tx = TX_L and counter_l_n = "01000" then
+        elsif curState_tx = TX_L and counter_l_n = "01000" then
             txData <= dataResults_reg_bcd(5);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "01001" then
+        elsif curState_tx = TX_L and counter_l_n = "01001" then
             txData <= "00100000"; 
-        elsif nextState_tx = TX_L and counter_l_n = "01010" then
+        elsif curState_tx = TX_L and counter_l_n = "01010" then
             txData <= dataResults_reg_bcd(6);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "01011" then
+        elsif curState_tx = TX_L and counter_l_n = "01011" then
             txData <= dataResults_reg_bcd(7);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "01100" then
+        elsif curState_tx = TX_L and counter_l_n = "01100" then
             txData <= "00100000";
-        elsif nextState_tx = TX_L and counter_l_n = "01101" then
+        elsif curState_tx = TX_L and counter_l_n = "01101" then
             txData <= dataResults_reg_bcd(8);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "01110" then
+        elsif curState_tx = TX_L and counter_l_n = "01110" then
             txData <= dataResults_reg_bcd(9);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "01111" then
+        elsif curState_tx = TX_L and counter_l_n = "01111" then
             txData <= "00100000";
-        elsif nextState_tx = TX_L and counter_l_n = "10000" then
+        elsif curState_tx = TX_L and counter_l_n = "10000" then
             txData <= dataResults_reg_bcd(10);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "10001" then
+        elsif curState_tx = TX_L and counter_l_n = "10001" then
             txData <= dataResults_reg_bcd(11);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "10010" then
+        elsif curState_tx = TX_L and counter_l_n = "10010" then
             txData <= "00100000";
-        elsif nextState_tx = TX_L and counter_l_n = "10011" then
+        elsif curState_tx = TX_L and counter_l_n = "10011" then
             txData <= dataResults_reg_bcd(12);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "10100" then
+        elsif curState_tx = TX_L and counter_l = "10100" then
             txData <= dataResults_reg_bcd(13);-----------------
-        elsif nextState_tx = TX_L and counter_l_n = "10101" then
+        elsif curState_tx = TX_L and counter_l = "10101" then
             txData <= "00100000";
         end if;
 end process;
@@ -467,6 +525,8 @@ begin
         elsif curState_tx = TX_P and txdone = '1' then
             txNow <= '1';
         elsif curState_tx = TX_L and txdone = '1' then
+            txNow <= '1';
+        elsif (curState_tx_crlf = TX_START or curState_tx_crlf = TX_START_1) and txdone = '1' then
             txNow <= '1';
         end if;
 end process;
@@ -695,15 +755,9 @@ begin
         end if;
 end process;
 --------------seqDone register--------------------
-combi_seqDone: process(seqDone, curState_tx, nextState_tx) --combinational logic
+combi_seqDone: process(seqDone) --combinational logic
 begin
-    if curState_tx=INIT then
-        seqDone_reg_n <= seqDone;
-    elsif curState_tx  = TX_START and nextState_tx = TX_START and numWords_bcd_reg(0) = "0001" and numWords_bcd_reg(1) = "0000" and numWords_bcd_reg(2) = "0000" then
-        seqDone_reg_n <= seqDone;
-    else
-        seqDone_reg_n <= seqDone_reg;
-    end if;
+    seqDone_reg_n <= seqDone;
 end process;
 seq_seqDone: process (clk, reset) --sequential logic 
 begin
