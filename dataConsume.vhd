@@ -48,7 +48,7 @@ entity dataConsume is
 end dataConsume;
 
 architecture Behavioral of dataConsume is
-signal ctrlIn_reg_n, ctrlIn_reg, ctrlOut_reg, ctrlOut_reg_n: std_logic;
+signal ctrlIn_reg_n, ctrlIn_reg, ctrlOut_reg, ctrlOut_reg_n, seqDone_int, seqDone_int_n, ctrlIn_reg_edge, ctrlIn_reg_edge_n: std_logic;
 signal counter, counter_n: BCD_ARRAY_TYPE(2 downto 0);
 signal byte_reg, byte_reg_n: std_logic_vector(7 downto 0);
 
@@ -58,8 +58,9 @@ signal curState, nextState: state_type; --state variables
 begin
 byte <= data;
 ctrlOut <= ctrlOut_reg;
+seqDone <= seqDone_int;
 -------------------------state machine register------------------------
-combi_state: process(curState, start, counter, counter_n, ctrlIn_reg, ctrlIn_reg_n)
+combi_state: process(curState, start, counter, counter_n, ctrlIn_reg, ctrlIn_reg_n, seqDone_int)
 begin
     case curState is
         when INIT =>
@@ -77,13 +78,17 @@ begin
         when complete_data_gen=>
             if counter_n(0) = "0000" and counter_n(1) = "0000" and counter_n(2) = "0000" then
                 nextState <= complete_all_data_gen;
-            elsif ctrlIn_reg = ctrlIn_reg_n then
+            elsif ctrlIn_reg = ctrlIn_reg_n and start = '1' then
                 nextState <= start_data_gen;
             else    
                 nextState <= complete_data_gen;
             end if;
         when complete_all_data_gen =>
-            nextState <= complete_all_data_gen;
+            if seqDone_int = '1' then
+                nextState <= INIT;
+            else
+                nextState <= complete_all_data_gen;
+            end if;
         when others =>
             nextState <= INIT;
             
@@ -105,10 +110,18 @@ combi_ctrlOut: process(ctrlOut_reg, reset, curState, nextState, counter_n)
 begin
     if reset = '1' then
         ctrlOut_reg_n <= '0';
-    elsif ctrlOut_reg = '1' and curState = start_data_gen and nextState = start_data_gen and counter_n /= numWords_bcd then
-        ctrlOut_reg_n <= '0';
-    elsif ctrlOut_reg = '0' and curState = start_data_gen and nextState = start_data_gen and counter_n /= numWords_bcd then
-        ctrlOut_reg_n <= '1';
+    elsif ctrlOut_reg = '1' and curState = start_data_gen and nextState = start_data_gen then
+        if (counter_n(0) /= numWords_bcd(0) or counter_n(1) /= numWords_bcd(1) or counter_n(2) /= numWords_bcd(2)) then
+            ctrlOut_reg_n <= '0';
+        else
+            ctrlOut_reg_n <= ctrlOut_reg;
+        end if;
+    elsif ctrlOut_reg = '0' and curState = start_data_gen and nextState = start_data_gen and start = '1' then
+        if (counter_n(0) /= numWords_bcd(0) or counter_n(1) /= numWords_bcd(1) or counter_n(2) /= numWords_bcd(2)) then
+            ctrlOut_reg_n <= '1';
+        else
+            ctrlOut_reg_n <= ctrlOut_reg;
+        end if;
     else
         ctrlOut_reg_n <= ctrlOut_reg;
     end if;
@@ -149,7 +162,7 @@ combi_counter0: process(reset, counter, ctrlOut_reg, ctrlIn)
 begin
     if reset = '1' then
         counter_n(0) <= "0000";
-    elsif counter(0)= numWords_bcd(0) and counter(1)= numWords_bcd(1) and counter(2)= numWords_bcd(2) and ctrlIn_reg = '1' and ctrlIn_reg_n = '0' then
+    elsif counter(0)= numWords_bcd(0) and counter(1)= numWords_bcd(1) and counter(2)= numWords_bcd(2) then
         counter_n(0) <= "0000";
     elsif ctrlIn /= ctrlOut_reg then
         if counter(0) = "1001" then
@@ -229,11 +242,50 @@ begin
     end if;
 end process;
 ------------------------dataReady combinatorial logic-------------------------
-combi_dataReady: process(curState, nextState)
+combi_dataReady: process(curState, ctrlIn_reg_edge, ctrlIn_reg_edge_n)
 begin
     dataReady <= '0';
-    if curState = complete_data_gen and nextState = start_data_gen then
+    if (curState = complete_data_gen or curState = complete_all_data_gen) and ctrlIn_reg_edge /= ctrlIn_reg_edge_n then
         dataReady <= '1';
+    end if;
+end process;
+------------------------seqDone_int combinatorial logic-------------------------
+combi_seqDone_int: process(curState, ctrlIn_reg)
+begin
+    if curState = complete_all_data_gen and counter(0)= "0000" and counter(1)= "0000" and counter(2)= "0000" then
+        seqDone_int_n <= '1';
+    else
+        seqDone_int_n <= '0';
+    end if;
+end process;
+seq_seqDone_int: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            seqDone_int <= '0';
+        else
+            seqDone_int <= seqDone_int_n;
+        end if;
+    end if;
+end process;
+-------------------------ctrlIn_reg_edge register------------------------
+combi_ctrlIn_reg_edge: process(ctrlIn_reg, reset)
+begin
+    if reset = '1' then
+        ctrlIn_reg_edge_n <= '0';
+    else
+        ctrlIn_reg_edge_n <= ctrlIn_reg;
+    end if;
+end process;
+
+seq_ctrlIn_reg_edge: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if (reset = '1') then
+            ctrlIn_reg_edge <= '0';
+        else
+            ctrlIn_reg_edge <= ctrlIn_reg_edge_n;
+        end if;
     end if;
 end process;
 ------------------------byte assignment register------------------------------
