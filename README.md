@@ -32,3 +32,6 @@ The bit stream file has been generated and cmdProc.vhd can be synthesized and im
 
 8/3/2020
 In previous cmdProc.vhd file, bugs are found such as cannot output correctly when input a001 and when input is axxx, output is xxx-1. These bugs have been fixed. However, when trying to generate bitstream file, I found there is some problems on constraints. Thus, I add some code to the .xdc file to fix the lack of constraints and also suppress some unnecessary errors. 
+
+9/3/2020
+In previous cmdProc.vhd file, axexx command can not be intepreted correctly. This has been fixed in this version. Change some of the code in order to avoid combinatorial loops.
