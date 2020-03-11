@@ -81,7 +81,7 @@ signal curState_tx_crlf, nextState_tx_crlf: state_type_tx_ctrl;
 begin
 numWords_bcd <= numWords_bcd_reg;
 --------------Main State register combinational logic--------------------------
-combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone_reg, rxnow_reg, framErr, counter_p, counter_l, curState_tx)
+combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone_reg_n, rxnow_reg, framErr, counter_p, counter_l, curState_tx)
 begin
     case curState is
         when INIT =>    --Initial state
@@ -135,7 +135,7 @@ begin
                 nextState <= RX_A_2;
             end if;
         when dataConsumer_communication_A =>    
-            if seqDone_reg = '1' then-----------------------
+            if seqDone_reg_n = '1' then-----------------------
                 nextState <= INIT;
             else
                 nextState <= dataConsumer_communication_A;
@@ -211,7 +211,7 @@ begin
                 nextState_tx <= TX_crlf;
             end if;
         when J_dataConsumer =>
-            if curState_dataConsumer = J_tx or seqDone_reg = '1' or curState = INIT then
+            if curState_dataConsumer = J_tx or seqDone_reg_n = '1' or curState = INIT then
                 nextState_tx <= INIT;
             else
                 nextState_tx <= J_dataConsumer;
