@@ -65,7 +65,7 @@ architecture Behavioral of cmdProc is
 signal txdata_reg_n_1, txdata_reg_n_2, txdata_reg_1, txdata_reg_2: std_logic_vector(7 downto 0); --internal signals with 8 bits
 signal counter_p, counter_p_n: std_logic_vector(2 downto 0);
 signal numWords_bcd_reg, numWords_bcd_reg_n: BCD_ARRAY_TYPE(2 downto 0);
-signal txDone_reg, txDone_reg_n, en_counter_p, rxnow_reg, rxnow_reg_n, en_counter_l, seqDone_reg, seqDone_reg_n: std_logic;
+signal txDone_reg, txDone_reg_n, en_counter_p, rxnow_reg, rxnow_reg_n, en_counter_l, seqDone_reg, seqDone_reg_n, zeroflag, zeroflag_n: std_logic;
 signal maxIndex_reg_bcd, maxIndex_reg_bcd_n: CHAR_ARRAY_TYPE(2 downto 0);
 signal dataResults_reg_bcd, dataResults_reg_bcd_n: CHAR_ARRAY_TYPE(13 downto 0);
 signal counter_l, counter_l_n: std_logic_vector(4 downto 0);
@@ -105,7 +105,7 @@ begin
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then --0 = "00110000" 9 = "00111001"
                 nextState <= RX_A_1;    
-            elsif (rxData <= "00110000" or rxData >= "00111001") and rxnow = '1' then
+            elsif (rxData < "00110000" or rxData > "00111001") and rxnow = '1' then
                 nextState <= RX_INIT;
             else
                 nextState <= RX_A;
@@ -115,7 +115,7 @@ begin
                 nextState <= RX_INIT;
             elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
                 nextState <= RX_A_2; 
-            elsif (rxData <= "00110000" or rxData >= "00111001") and rxnow = '1' then
+            elsif (rxData < "00110000" or rxData > "00111001") and rxnow = '1' then
                 nextState <= RX_INIT;
             else
                 nextState <= RX_A_1;
@@ -123,10 +123,14 @@ begin
         when RX_A_2 =>  --receive third bit
             if framErr = '1' and rxnow = '1' then
                 nextState <= RX_INIT;
-            elsif rxData >= "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
+            elsif rxData > "00110000" and rxData <= "00111001" and rxnow = '1' then  --0 = "00110000" 9 = "00111001"
                 nextState <= dataConsumer_communication_A; 
-            elsif (rxData <= "00110000" or rxData >= "00111001") and rxnow = '1' then
-                    nextState <= RX_INIT;
+            elsif rxData = "00110000" and zeroflag = '0' and rxnow = '1' then
+                nextState <= dataConsumer_communication_A; 
+            elsif rxData = "00110000" and zeroflag = '1' and rxnow = '1' then   
+                nextState <= RX_INIT;
+            elsif (rxData < "00110000" or rxData > "00111001") and rxnow = '1' then
+                nextState <= RX_INIT;
             else
                 nextState <= RX_A_2;
             end if;
@@ -766,6 +770,41 @@ begin
             seqDone_reg <= '0';
         else
             seqDone_reg <= seqDone_reg_n;
+        end if;
+    end if;
+end process;
+--------------zeroflag register--------------------
+combi_zeroflag: process(curState, rxData, zeroflag, reset) --combinational logic
+begin
+    if reset = '1' then
+        zeroflag_n <= '0';
+    elsif curState = RX_A and rxData = "00000000" then
+        zeroflag_n <= '1';
+    elsif zeroflag = '1' and curState = RX_A_1 then
+        if rxData = "00110000" then
+            zeroflag_n <= '1';
+        else
+            zeroflag_n <= '0';
+        end if;
+    elsif zeroflag = '1' and curState = RX_A_2 then
+        if rxData = "00110000" then
+            zeroflag_n <= '1';
+        else
+            zeroflag_n <= '0';
+        end if;
+    elsif curState /= RX_A and curState /= RX_A_1 and curState /= RX_A_2 then
+        zeroflag_n <= '1';
+    else
+        zeroflag_n <= zeroflag;
+    end if;
+end process;
+seq_zeroflag: process (clk, reset) --sequential logic 
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            zeroflag <= '0';
+        else
+            zeroflag <= zeroflag_n;
         end if;
     end if;
 end process;
