@@ -51,14 +51,17 @@ architecture Behavioral of dataConsume is
 signal ctrlIn_reg_n, ctrlIn_reg, ctrlOut_reg, ctrlOut_reg_n, seqDone_int, seqDone_int_n, ctrlIn_reg_edge, ctrlIn_reg_edge_n: std_logic;
 signal counter, counter_n: BCD_ARRAY_TYPE(2 downto 0);
 signal byte_reg, byte_reg_n: std_logic_vector(7 downto 0);
+signal dataResults_reg, dataResults_reg_n: CHAR_ARRAY_TYPE(0 to RESULT_BYTE_NUM-1);
 
 type state_type IS (INIT, start_data_gen, complete_data_gen, complete_all_data_gen);   --define the state type
 signal curState, nextState: state_type; --state variables
-
+type state_p_type IS (INIT, start_p);   --define the state type
+signal curState_p, nextState_p: state_p_type; --state variables
 begin
 byte <= data;
 ctrlOut <= ctrlOut_reg;
 seqDone <= seqDone_int;
+dataResults <= dataResults_reg;
 -------------------------state machine register------------------------
 combi_state: process(curState, start, counter, counter_n, ctrlIn_reg, ctrlIn_reg_n, seqDone_int)
 begin
@@ -102,6 +105,37 @@ begin
             curState <= INIT;
         else
             curState <= nextState;
+        end if;
+    end if;
+end process;
+-------------------------state machine register------------------------
+combi_state_p: process(curState_p, ctrlIn_reg, ctrlIn_reg_n)
+begin
+    case curState_p is
+        when INIT =>
+            if ctrlIn_reg /= ctrlIn_reg_n then
+                nextState_p <= start_p;
+            else
+                nextState_p <= INIT;
+            end if;
+        when start_p =>
+            if seqDone_int = '1' then
+                nextState_p <= INIT;
+            else
+                nextState_p <= start_p;
+            end if;
+        when others =>
+            nextState_p <= INIT;
+    end case;
+end process;
+
+seq_state_p: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if (reset = '1') then
+            curState_p <= INIT;
+        else
+            curState_p <= nextState_p;
         end if;
     end if;
 end process;
@@ -289,26 +323,53 @@ begin
     end if;
 end process;
 ------------------------byte assignment register------------------------------
---combi_byte: process(reset, byte_reg, ctrlIn)
---begin
---    if reset = '1' then
---        byte_reg_n <= "00000000";
---    elsif ctrlIn = '1' then
---        byte_reg_n <= data;
---    else
---        byte_reg_n <= byte_reg;
+combi_byte: process(reset, byte_reg, ctrlIn_reg, ctrlIn_reg_n)
+begin
+    if reset = '1' then
+        byte_reg_n <= "00000000";
+    elsif ctrlIn_reg /= ctrlIn_reg_n then
+        byte_reg_n <= data;
+    else
+        byte_reg_n <= byte_reg;
     
---    end if;
---end process;
+    end if;
+end process;
 
---seq_byte: process(clk, reset)
---begin
---    if rising_edge(clk) then
---        if reset = '1' then
---            byte_reg <= "00000000";
---        else
---            byte_reg <= byte_reg_n;
---        end if;
---    end if;
---end process;
+seq_byte: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            byte_reg <= "00000000";
+        else
+            byte_reg <= byte_reg_n;
+        end if;
+    end if;
+end process;
+----------------------dataResults register----------------------------------
+combi_dataResults_reg: process(reset, byte_reg, ctrlIn_reg, ctrlIn_reg_n)
+begin
+    if reset = '1' then
+        dataResults_reg_n <= (others => "00000000");
+    elsif ctrlIn_reg /= ctrlIn_reg_n then
+        if dataResults_reg(3) < data then
+            dataResults_reg_n(3) <= data;
+        else
+            dataResults_reg_n <= dataResults_reg;
+        end if;
+    else
+        dataResults_reg_n <= dataResults_reg;
+    
+    end if;
+end process;
+
+seq_dataResults_reg: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            dataResults_reg <= (others => "00000000");
+        else
+            dataResults_reg <= dataResults_reg_n;
+        end if;
+    end if;
+end process;
 end Behavioral;
