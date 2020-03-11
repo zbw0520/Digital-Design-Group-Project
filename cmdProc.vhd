@@ -759,9 +759,13 @@ begin
         end if;
 end process;
 --------------seqDone register--------------------
-combi_seqDone: process(seqDone) --combinational logic
+combi_seqDone: process(seqDone,reset) --combinational logic
 begin
-    seqDone_reg_n <= seqDone;
+    if reset = '1' then
+        seqDone_reg_n <= '0';
+    else
+        seqDone_reg_n <= seqDone;
+    end if;
 end process;
 seq_seqDone: process (clk, reset) --sequential logic 
 begin
