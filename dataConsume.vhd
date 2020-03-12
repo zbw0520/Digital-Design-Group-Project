@@ -52,16 +52,25 @@ signal ctrlIn_reg_n, ctrlIn_reg, ctrlOut_reg, ctrlOut_reg_n, seqDone_int, seqDon
 signal counter, counter_n: BCD_ARRAY_TYPE(2 downto 0);
 signal byte_reg, byte_reg_n: std_logic_vector(7 downto 0);
 signal dataResults_reg, dataResults_reg_n: CHAR_ARRAY_TYPE(0 to RESULT_BYTE_NUM-1);
+signal f_dataReady, f_dataReady_n, ff_dataReady_n: std_logic;
+signal ssign_reg, ssign_reg_n: std_logic;
+signal datahalfside_reg, datahalfside_reg_n: CHAR_ARRAY_TYPE(0 to 2);
+signal maxIndex_reg_n, maxIndex_reg: BCD_ARRAY_TYPE(2 downto 0);
 
 type state_type IS (INIT, start_data_gen, complete_data_gen, complete_all_data_gen);   --define the state type
 signal curState, nextState: state_type; --state variables
 type state_p_type IS (INIT, start_p);   --define the state type
 signal curState_p, nextState_p: state_p_type; --state variables
+type state_L_type IS (INIT, start_L, L_1, L_2, L_3, L_4);
+signal curState_l, nextState_l: state_l_type;
+
 begin
 byte <= data;
 ctrlOut <= ctrlOut_reg;
 seqDone <= seqDone_int;
 dataResults <= dataResults_reg;
+maxIndex <= maxIndex_reg;
+
 -------------------------state machine register------------------------
 combi_state: process(curState, start, counter, counter_n, ctrlIn_reg, ctrlIn_reg_n, seqDone_int)
 begin
@@ -346,19 +355,222 @@ begin
     end if;
 end process;
 ----------------------dataResults register----------------------------------
-combi_dataResults_reg: process(reset, byte_reg, ctrlIn_reg, ctrlIn_reg_n)
+--combi_dataResults_reg: process(reset, byte_reg, ctrlIn_reg, ctrlIn_reg_n)
+--begin
+--    if reset = '1' then
+--        dataResults_reg_n <= (others => "00000000");
+--    elsif ctrlIn_reg /= ctrlIn_reg_n then
+--        if dataResults_reg(3) < data then
+--            dataResults_reg_n(3) <= data;
+--        else
+--            dataResults_reg_n <= dataResults_reg;
+--        end if;
+--    else
+--        dataResults_reg_n <= dataResults_reg;
+    
+--    end if;
+--end process;
+
+--seq_dataResults_reg: process(clk, reset)
+--begin
+--    if rising_edge(clk) then
+--        if reset = '1' then
+--            dataResults_reg <= (others => "00000000");
+--        else
+--            dataResults_reg <= dataResults_reg_n;
+--        end if;
+--    end if;
+--end process;
+--------------------fake dataReady used as flags----------------------------------------
+combi_f_dataReady: process(curState, ctrlIn_reg_edge, ctrlIn_reg_edge_n)
 begin
-    if reset = '1' then
-        dataResults_reg_n <= (others => "00000000");
-    elsif ctrlIn_reg /= ctrlIn_reg_n then
-        if dataResults_reg(3) < data then
-            dataResults_reg_n(3) <= data;
+    ff_dataReady_n <= '0';
+    if (curState = complete_data_gen or curState = complete_all_data_gen) and ctrlIn_reg_edge /= ctrlIn_reg_edge_n then
+        ff_dataReady_n <= '1';
+    end if;
+end process;
+
+seq_f_dataReady_reg: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        f_dataReady <= f_dataReady_n;
+    end if;
+end process;
+seq_ff_dataReady_reg: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        f_dataReady_n <= ff_dataReady_n;
+    end if;
+end process;
+--------------------dataResults state-------------------------------------
+combi_dataResults_state: process(curState_l, f_dataReady, f_dataReady_n, ff_dataReady_n)
+begin
+    case curState_l is
+        when INIT =>
+            if (byte_reg > "00000000" and byte_reg <= "11111111" and ff_dataReady_n = '0' and f_dataReady_n = '1') then
+                nextState_l <= start_L;
+            else
+                nextState_l <= INIT;
+            end if;
+
+        when start_L =>
+            if  (ff_dataReady_n = '0' and f_dataReady_n = '1' and ssign_reg = '0') then
+                nextState_l <= L_1;
+            else
+                nextState_l <= curState_l;
+            end if;
+
+        when L_1 =>
+            if (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '0') then
+                nextState_l <= L_2; 
+            elsif (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '1') then
+                nextState_l <= start_L;
+            else
+                nextState_l <= curState_l;
+            end if;
+
+        when L_2 =>
+            if (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '0') then
+                nextState_l <= L_3; 
+            elsif (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '1') then
+                nextState_l <= start_L;                
+            else
+                nextState_l <= curState_l;
+            end if;
+
+        when L_3 =>
+            if (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '0') then
+                nextState_l <= L_4; 
+            elsif (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '1') then
+                nextState_l <= start_L;
+            else
+                nextState_l <= curState_l;
+            end if;
+            
+        when L_4 =>  
+            if (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '0') then
+                nextState_l <= L_4; 
+            elsif (ff_dataReady_n = '0' and f_dataReady_n  = '1' and ssign_reg = '1') then
+                nextState_l <= start_L;
+            else
+                nextState_l <= curState_l;
+            end if;
+      
+        when others =>
+            nextState_l <= INIT;
+            
+    end case;
+end process;
+
+seq_dataResults_state: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            curState_l <= INIT;
         else
-            dataResults_reg_n <= dataResults_reg;
+            curState_l <= nextState_l;
+        end if;
+    end if;
+end process;
+-------------------dataResult halfside registor----------------------
+combi_halfside_reg: process(f_dataReady_n, f_dataReady)
+begin
+    if (f_dataReady = '1' and f_dataReady_n = '0') then
+        datahalfside_reg_n(0) <=  datahalfside_reg(1);
+        datahalfside_reg_n(1) <=  datahalfside_reg(2);
+        datahalfside_reg_n(2) <=  byte_reg;    
+    else
+        datahalfside_reg_n <= datahalfside_reg;  
+    end if;
+end process;
+
+seq_halfside_reg: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            datahalfside_reg <= (others => "00000000");
+        else
+            datahalfside_reg <= datahalfside_reg_n;
+        end if;
+    end if;
+end process;
+--------------------dataResult Compare sign------------------------
+combi_dataResults_sign: process(ctrlIn_reg_edge_n, ctrlIn_reg_edge)
+begin
+    if curState_l = INIT then
+        ssign_reg_n <= '0';
+    elsif ctrlIn_reg_edge /= ctrlIn_reg_edge_n then
+        if byte_reg(7) > dataResults_reg(3)(7) then
+            ssign_reg_n <= '0';
+        elsif byte_reg(7) < dataResults_reg(3)(7) then
+            ssign_reg_n <= '1';
+        elsif byte_reg(7) = '1' and dataResults_reg(3)(7) = '1' and byte_reg(6 downto 0) < dataResults_reg(3)(6 downto 0) then
+            ssign_reg_n <= '1';
+        elsif byte_reg(7) = '1' and dataResults_reg(3)(7) = '1' and byte_reg(6 downto 0) > dataResults_reg(3)(6 downto 0) then
+            ssign_reg_n <= '0';
+        elsif byte_reg(7) = '0' and dataResults_reg(3)(7) ='0' and byte_reg(6 downto 0) < dataResults_reg(3)(6 downto 0) then
+            ssign_reg_n <= '0';
+        elsif byte_reg(7) = '0' and dataResults_reg(3)(7) = '0' and byte_reg(6 downto 0) > dataResults_reg(3)(6 downto 0) then
+            ssign_reg_n <= '1';
+        else
+            ssign_reg_n <= '0';
         end if;
     else
-        dataResults_reg_n <= dataResults_reg;
+        ssign_reg_n <= ssign_reg;
+    end if;
+
+end process;
+
+seq_dataResults_sign: process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            ssign_reg <= '0';
+        else
+            ssign_reg <= ssign_reg_n;
+        end if;
+    end if;
+end process;
+--------------------dataResult output---------------------
+combi_dataResults_reg: process(curState_l, reset, f_dataReady_n, f_dataReady)
+begin
+    if  reset = '1' then
+        dataResults_reg_n <= (others => "00000000");
+    else
+        case curState_l is
+            when start_L =>
+                if (ssign_reg = '1' and f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(3) <= byte_reg;
+                    dataResults_reg_n(4) <= datahalfside_reg(2 );
+                    dataResults_reg_n(5) <= datahalfside_reg(1);
+                    dataResults_reg_n(6) <= datahalfside_reg(0);
+                    
+                else
+                    dataResults_reg_n <= dataResults_reg;
+                end if;
     
+            when L_1 =>
+                if (f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(2) <= byte_reg;
+                else
+                    dataResults_reg_n <= dataResults_reg;
+                end if;
+            when L_2 =>
+                if (f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(1) <= byte_reg;
+                else
+                    dataResults_reg_n <= dataResults_reg;
+                end if;
+            when L_3 =>
+                if (f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(0) <= byte_reg;
+                else
+                    dataResults_reg_n <= dataResults_reg;
+                end if;
+
+            when others =>
+                dataResults_reg_n <= dataResults_reg;
+        end case;
     end if;
 end process;
 
@@ -372,4 +584,27 @@ begin
         end if;
     end if;
 end process;
+------------------maxIndex register-------------------------------
+combi_maxIndex_reg: process(f_dataReady, f_dataReady_n, maxIndex_reg)
+begin
+    if (f_dataReady = '1' and f_dataReady_n = '0' and curState_l = start_L) then
+        maxIndex_reg_n <= counter;
+    else
+        maxIndex_reg_n <= maxIndex_reg;
+    end if;
+end process;
+
+seq_maxIndex_reg:process(clk, reset)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            maxIndex_reg(0) <= "0000";
+            maxIndex_reg(1) <= "0000";
+            maxIndex_reg(2) <= "0000";
+        else
+            maxIndex_reg <= maxIndex_reg_n;
+        end if;
+    end if;    
+end process;
+
 end Behavioral;
