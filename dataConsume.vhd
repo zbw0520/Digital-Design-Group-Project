@@ -540,30 +540,50 @@ begin
         case curState_l is
             when start_L =>
                 if (ssign_reg = '1' and f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(0) <= dataResults_reg(0);
+                    dataResults_reg_n(1) <= dataResults_reg(1);
+                    dataResults_reg_n(2) <= dataResults_reg(2);
                     dataResults_reg_n(3) <= byte_reg;
-                    dataResults_reg_n(4) <= datahalfside_reg(2 );
+                    dataResults_reg_n(4) <= datahalfside_reg(2);
                     dataResults_reg_n(5) <= datahalfside_reg(1);
-                    dataResults_reg_n(6) <= datahalfside_reg(0);
-                    
+                    dataResults_reg_n(6) <= datahalfside_reg(0);                    
                 else
                     dataResults_reg_n <= dataResults_reg;
                 end if;
     
             when L_1 =>
                 if (f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(0) <= dataResults_reg(0);
+                    dataResults_reg_n(1) <= dataResults_reg(1);
                     dataResults_reg_n(2) <= byte_reg;
+                    dataResults_reg_n(3) <= dataResults_reg(3);
+                    dataResults_reg_n(4) <= dataResults_reg(4);
+                    dataResults_reg_n(5) <= dataResults_reg(5);
+                    dataResults_reg_n(6) <= dataResults_reg(6);  
                 else
                     dataResults_reg_n <= dataResults_reg;
                 end if;
             when L_2 =>
                 if (f_dataReady = '1' and f_dataReady_n = '0')then
+                    dataResults_reg_n(0) <= dataResults_reg(0);
                     dataResults_reg_n(1) <= byte_reg;
+                    dataResults_reg_n(2) <= dataResults_reg(2);
+                    dataResults_reg_n(3) <= dataResults_reg(3);
+                    dataResults_reg_n(4) <= dataResults_reg(4);
+                    dataResults_reg_n(5) <= dataResults_reg(5);
+                    dataResults_reg_n(6) <= dataResults_reg(6);  
                 else
                     dataResults_reg_n <= dataResults_reg;
                 end if;
             when L_3 =>
                 if (f_dataReady = '1' and f_dataReady_n = '0')then
                     dataResults_reg_n(0) <= byte_reg;
+                    dataResults_reg_n(1) <= dataResults_reg(1);
+                    dataResults_reg_n(2) <= dataResults_reg(2);
+                    dataResults_reg_n(3) <= dataResults_reg(3);
+                    dataResults_reg_n(4) <= dataResults_reg(4);
+                    dataResults_reg_n(5) <= dataResults_reg(5);
+                    dataResults_reg_n(6) <= dataResults_reg(6); 
                 else
                     dataResults_reg_n <= dataResults_reg;
                 end if;
