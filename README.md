@@ -38,3 +38,6 @@ In previous cmdProc.vhd file, axexx command can not be intepreted correctly. Thi
 
 9/3/2020
 Two files has been tested together. Bitstream file has been generated and it turns out to be working well. In dataConsume.vhd file we still need to develop the "P command" code and "L command" code for complete function.
+
+17/3/2020
+upload full function with echoing.
