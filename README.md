@@ -45,4 +45,4 @@ upload full function with echoing.
 ### License and copyright
 © Bowen Zhang and Weifeng Du
 
-License under the [GLP License](License)
+License under the [GLP License](LICENSE)
