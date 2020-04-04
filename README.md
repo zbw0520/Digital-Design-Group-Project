@@ -42,7 +42,7 @@ Two files has been tested together. Bitstream file has been generated and it tur
 17/3/2020
 upload full function with echoing.
 
-##License and copyright
+### License and copyright
 © Bowen Zhang and Weifeng Du
 
 License under the [MIT License](License)
