@@ -42,6 +42,9 @@ Two files has been tested together. Bitstream file has been generated and it tur
 17/3/2020
 upload full function with echoing.
 
+21/4/2020
+bugs fixed.
+
 ### License and copyright
 © Bowen Zhang and Weifeng Du
 
