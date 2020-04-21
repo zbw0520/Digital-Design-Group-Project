@@ -397,7 +397,7 @@ end process; -- seq
 --------------numWords_bcd_reg_0 register--------------------
 combi_numWords_bcd_reg_0: process(nextState, curState, rxData, numWords_bcd_reg(0)) --combinational logic
 begin
-    if nextState = dataConsumer_communication_A and curState = RX_A_2 then
+    if (nextState = dataConsumer_communication_A_0 and curState = RX_A_2) or (nextState = dataConsumer_communication_A and curState = RX_A_2) then
         numWords_bcd_reg_n(0) <= rxData(3 downto 0);
     else
         numWords_bcd_reg_n(0) <= numWords_bcd_reg(0);
@@ -725,26 +725,26 @@ seq_dataResults: process (clk, reset) --sequential logic
 begin
 if rising_edge(clk) then
     if reset = '1' then
-        dataResults_reg_bcd(0) <= "00000000";   --high 4 bits
-        dataResults_reg_bcd(1) <= "00000000";   --low 4 bits
+        dataResults_reg_bcd(0) <= "00110000";   --high 4 bits
+        dataResults_reg_bcd(1) <= "00110000";   --low 4 bits
         
-        dataResults_reg_bcd(2) <= "00000000";
-        dataResults_reg_bcd(3) <= "00000000";
+        dataResults_reg_bcd(2) <= "00110000";
+        dataResults_reg_bcd(3) <= "00110000";
         
-        dataResults_reg_bcd(4) <= "00000000";
-        dataResults_reg_bcd(5) <= "00000000";
+        dataResults_reg_bcd(4) <= "00110000";
+        dataResults_reg_bcd(5) <= "00110000";
         
-        dataResults_reg_bcd(6) <= "00000000";
-        dataResults_reg_bcd(7) <= "00000000";
+        dataResults_reg_bcd(6) <= "00110000";
+        dataResults_reg_bcd(7) <= "00110000";
         
-        dataResults_reg_bcd(8) <= "00000000";
-        dataResults_reg_bcd(9) <= "00000000";
+        dataResults_reg_bcd(8) <= "00110000";
+        dataResults_reg_bcd(9) <= "00110000";
         
-        dataResults_reg_bcd(10) <= "00000000";
-        dataResults_reg_bcd(11) <= "00000000";
+        dataResults_reg_bcd(10) <= "00110000";
+        dataResults_reg_bcd(11) <= "00110000";
         
-        dataResults_reg_bcd(12) <= "00000000";
-        dataResults_reg_bcd(13) <= "00000000";
+        dataResults_reg_bcd(12) <= "00110000";
+        dataResults_reg_bcd(13) <= "00110000";
     else
         dataResults_reg_bcd <= dataResults_reg_bcd_n;
     end if;
@@ -780,9 +780,9 @@ seq_maxIndex: process (clk, reset) --sequential logic
 begin
     if rising_edge(clk) then
         if reset = '1' then
-            maxIndex_reg_bcd(0) <= "00000000";
-            maxIndex_reg_bcd(1) <= "00000000";
-            maxIndex_reg_bcd(2) <= "00000000";
+            maxIndex_reg_bcd(0) <= "00110000";
+            maxIndex_reg_bcd(1) <= "00110000";
+            maxIndex_reg_bcd(2) <= "00110000";
         else    
             maxIndex_reg_bcd <= maxIndex_reg_bcd_n;
         end if;
