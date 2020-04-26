@@ -116,7 +116,7 @@ begin
     end if;
 end process;
 -------------------------ctrlOut register------------------------
-combi_ctrlOut: process(ctrlOut_reg, reset, curState, nextState, counter_n)
+combi_ctrlOut: process(ctrlOut_reg, reset, curState, nextState, counter_n, numWords_bcd, start)
 begin
     if reset = '1' then
         ctrlOut_reg_n <= '0';
@@ -168,7 +168,7 @@ begin
     end if;
 end process;
 ---------------------counter(0)_bcdcoding_adder------------------------------------
-combi_counter0: process(reset, counter, ctrlOut_reg, ctrlIn)
+combi_counter0: process(reset, counter, ctrlOut_reg, ctrlIn,numWords_bcd)
 begin
     if reset = '1' then
         counter_n(0) <= "0000";
@@ -196,7 +196,7 @@ begin
     end if;
 end process;
 ---------------------counter(1)_bcdcoding_adder------------------------------------
-combi_counter1: process(reset, counter, ctrlOut_reg, ctrlIn)
+combi_counter1: process(reset, counter, ctrlOut_reg, ctrlIn,numWords_bcd)
 begin
     if reset = '1' then
         counter_n(1) <= "0000";
@@ -224,7 +224,7 @@ begin
     end if;
 end process;
 ---------------------counter(2)_bcdcoding_adder------------------------------------
-combi_counter2: process(reset, counter, ctrlOut_reg, ctrlIn)
+combi_counter2: process(reset, counter, ctrlOut_reg, ctrlIn,numWords_bcd)
 begin
     if reset = '1' then
         counter_n(2) <= "0000";
@@ -260,7 +260,7 @@ begin
     end if;
 end process;
 ------------------------seqDone_int combinatorial logic-------------------------
-combi_seqDone_int: process(curState, ctrlIn_reg)
+combi_seqDone_int: process(curState, ctrlIn_reg,counter)
 begin
     if curState = complete_all_data_gen and counter(0)= "0000" and counter(1)= "0000" and counter(2)= "0000" then
         seqDone_int_n <= '1';
@@ -299,7 +299,7 @@ begin
     end if;
 end process;
 ------------------------byte assignment register------------------------------
-combi_byte: process(reset, byte_reg, ctrlIn_reg, ctrlIn_reg_n)
+combi_byte: process(reset, byte_reg, ctrlIn_reg, ctrlIn_reg_n,data)
 begin
     if reset = '1' then
         byte_reg_n <= "00000000";
@@ -370,7 +370,7 @@ begin
     end if;
 end process;
 --------------------dataResults state-------------------------------------
-combi_dataResults_state: process(curState_l, f_dataReady, f_dataReady_n, ff_dataReady_n)
+combi_dataResults_state: process(curState_l, f_dataReady, f_dataReady_n, ff_dataReady_n,byte_reg,ssign_reg)
 begin
     case curState_l is
         when INIT =>
@@ -440,7 +440,7 @@ begin
     end if;
 end process;
 -------------------dataResult halfside registor----------------------
-combi_halfside_reg: process(f_dataReady_n, f_dataReady)
+combi_halfside_reg: process(f_dataReady_n, f_dataReady,datahalfside_reg,byte_reg)
 begin
     if (f_dataReady = '1' and f_dataReady_n = '0') then
         datahalfside_reg_n(0) <=  datahalfside_reg(1);
@@ -462,7 +462,7 @@ begin
     end if;
 end process;
 --------------------dataResult Compare sign------------------------
-combi_dataResults_sign: process(ctrlIn_reg_edge_n, ctrlIn_reg_edge)
+combi_dataResults_sign: process(ctrlIn_reg_edge_n, ctrlIn_reg_edge,ssign_reg,curState_l,byte_reg,dataResults_reg)
 begin
     if curState_l = INIT then
         ssign_reg_n <= '0';
@@ -499,7 +499,7 @@ begin
     end if;
 end process;
 --------------------dataResult output---------------------
-combi_dataResults_reg: process(curState_l, reset, f_dataReady_n, f_dataReady)
+combi_dataResults_reg: process(curState_l, reset, f_dataReady_n, f_dataReady,ssign_reg,dataResults_reg,byte_reg,datahalfside_reg)
 begin
     if  reset = '1' then
         dataResults_reg_n <= (others => "00000000");
@@ -572,7 +572,7 @@ begin
     end if;
 end process;
 ------------------maxIndex register-------------------------------
-combi_maxIndex_reg: process(f_dataReady, f_dataReady_n, maxIndex_reg)
+combi_maxIndex_reg: process(f_dataReady, f_dataReady_n, maxIndex_reg,curState_l,counter)
 begin
     if (f_dataReady = '1' and f_dataReady_n = '0' and curState_l = start_L) then
         maxIndex_reg_n <= counter;

@@ -85,7 +85,7 @@ begin
 numWords_bcd <= numWords_bcd_reg;
 txNow <= txNow_reg;
 --------------Main State register combinational logic--------------------------
-combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone_reg_n, rxnow_reg, framErr, counter_p, counter_l, curState_tx, txDone, curState_tx_crlf)
+combi_nextState_main: PROCESS(curState, rxnow, rxData, seqDone_reg_n, rxnow_reg, framErr, counter_p, counter_l, curState_tx, txDone, curState_tx_crlf,zeroflag)
 begin
     case curState is
         when INIT =>    --Initial state
@@ -190,7 +190,7 @@ begin
     end if;
 end process; -- seq
 --------------Tx State register combinational logic--------------------------
-combi_nextState_tx: PROCESS(curState, nextState, curState_tx, curState_dataConsumer, txDone_reg, txDone, rxnow_reg, counter_l, counter_p, curState_tx_crlf)
+combi_nextState_tx: PROCESS(curState, nextState, curState_tx, curState_dataConsumer, txDone_reg, txDone, rxnow_reg, counter_l, counter_p, curState_tx_crlf,seqDone_reg_n)
 begin
     case curState_tx is
         when INIT =>    --Initial state
@@ -344,7 +344,7 @@ if rising_edge(clk) then
 end if;
 end process; -- seq
 --------------echo State register combinational logic--------------------------
-combi_nextState_echo: PROCESS(curState_echo, curState, nextState, txDone_reg, txDone)  
+combi_nextState_echo: PROCESS(curState_echo, curState, nextState, txDone_reg, txDone,curState_tx_crlf)  
 begin
     case curState_echo is
         when INIT =>    --Initial state
@@ -499,7 +499,7 @@ if rising_edge(clk) then
 end if;
 end process; 
 ----------txdata output assignment process---------------------
-combi_txdata: process(curState_echo, curState_tx_crlf, curState_tx, counter_p, counter_crlf, counter_l_n, txdata_reg_1, txdata_reg_2, dataResults_reg_bcd, maxIndex_reg_bcd, curState)
+combi_txdata: process(curState_echo, curState_tx_crlf, curState_tx, counter_p, counter_crlf, counter_l_n, rxData, counter_l, txdata_reg_1, txdata_reg_2, dataResults_reg_bcd, maxIndex_reg_bcd, curState)
 begin
     txData <= "00000000";
         if curState_tx = TX_START then
