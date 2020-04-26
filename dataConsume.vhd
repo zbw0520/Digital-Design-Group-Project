@@ -59,8 +59,6 @@ signal maxIndex_reg_n, maxIndex_reg: BCD_ARRAY_TYPE(2 downto 0);
 
 type state_type IS (INIT, start_data_gen, complete_data_gen, complete_all_data_gen);   --define the state type
 signal curState, nextState: state_type; --state variables
-type state_p_type IS (INIT, start_p);   --define the state type
-signal curState_p, nextState_p: state_p_type; --state variables
 type state_L_type IS (INIT, start_L, L_1, L_2, L_3, L_4);
 signal curState_l, nextState_l: state_l_type;
 
@@ -114,37 +112,6 @@ begin
             curState <= INIT;
         else
             curState <= nextState;
-        end if;
-    end if;
-end process;
--------------------------state machine register------------------------
-combi_state_p: process(curState_p, ctrlIn_reg, ctrlIn_reg_n)
-begin
-    case curState_p is
-        when INIT =>
-            if ctrlIn_reg /= ctrlIn_reg_n then
-                nextState_p <= start_p;
-            else
-                nextState_p <= INIT;
-            end if;
-        when start_p =>
-            if seqDone_int = '1' then
-                nextState_p <= INIT;
-            else
-                nextState_p <= start_p;
-            end if;
-        when others =>
-            nextState_p <= INIT;
-    end case;
-end process;
-
-seq_state_p: process(clk, reset)
-begin
-    if rising_edge(clk) then
-        if (reset = '1') then
-            curState_p <= INIT;
-        else
-            curState_p <= nextState_p;
         end if;
     end if;
 end process;
